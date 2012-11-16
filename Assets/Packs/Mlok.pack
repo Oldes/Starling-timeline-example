@@ -1,0 +1,103 @@
+
+Mlok.png
+format: RGBA8888
+filter: Nearest,Nearest
+repeat: none
+SopranTelicko
+  rotate: false
+  xy: 1, 42
+  size: 171, 83
+  orig: 171, 83
+  offset: 0, 0
+  index: -1
+SopranHlava
+  rotate: false
+  xy: 1, 13
+  size: 56, 27
+  orig: 56, 27
+  offset: 0, 0
+  index: -1
+SopranNoha1C
+  rotate: false
+  xy: 174, 99
+  size: 24, 26
+  orig: 24, 26
+  offset: 0, 0
+  index: -1
+SopranSpodniCelist
+  rotate: false
+  xy: 1, 1
+  size: 30, 10
+  orig: 30, 10
+  offset: 0, 0
+  index: -1
+SopranNoha3B
+  rotate: false
+  xy: 59, 22
+  size: 14, 18
+  orig: 14, 18
+  offset: 0, 0
+  index: -1
+SopranNoha4B
+  rotate: false
+  xy: 174, 80
+  size: 10, 17
+  orig: 10, 17
+  offset: 0, 0
+  index: -1
+SopranNoha4C
+  rotate: false
+  xy: 200, 115
+  size: 17, 10
+  orig: 17, 10
+  offset: 0, 0
+  index: -1
+SopranNoha1A
+  rotate: false
+  xy: 33, 1
+  size: 15, 10
+  orig: 15, 10
+  offset: 0, 0
+  index: -1
+SopranNoha2B
+  rotate: false
+  xy: 75, 27
+  size: 11, 13
+  orig: 11, 13
+  offset: 0, 0
+  index: -1
+SopranNoha1B
+  rotate: false
+  xy: 174, 61
+  size: 5, 17
+  orig: 5, 17
+  offset: 0, 0
+  index: -1
+SopranOcniVicka
+  rotate: false
+  xy: 186, 88
+  size: 12, 9
+  orig: 12, 9
+  offset: 0, 0
+  index: -1
+SopranNoha2C
+  rotate: false
+  xy: 200, 104
+  size: 11, 9
+  orig: 11, 9
+  offset: 0, 0
+  index: -1
+SopranNoha3A
+  rotate: false
+  xy: 219, 115
+  size: 10, 10
+  orig: 10, 10
+  offset: 0, 0
+  index: -1
+SopranNoha3C
+  rotate: false
+  xy: 59, 14
+  size: 12, 6
+  orig: 12, 6
+  offset: 0, 0
+  index: -1

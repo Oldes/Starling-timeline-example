@@ -1,0 +1,1 @@
+In this folder are stored packed texture sheets from bitmaps stored in the ../Bitmaps/ folder.
