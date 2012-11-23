@@ -1,6 +1,6 @@
 REBOL [
     Title: "Pack-assets" 
-    Date: 16-Nov-2012/19:00:37+1:00 
+    Date: 23-Nov-2012/18:33:31+1:00 
     Name: none 
     Version: 0.1.0 
     File: none 
@@ -12,7 +12,10 @@ REBOL [
     Tabs: none 
     Usage: none 
     Purpose: none 
-    Comment: none 
+    Comment: {
+^-^-complex example where this script is used is here:
+^-^-https://github.com/Oldes/Starling-timeline-example
+^-} 
     History: none 
     Language: none 
     Type: none 
@@ -9411,11 +9414,18 @@ ctx-form-timeline: context [
 comment "---- end of RS include %form-timeline.r ----" 
 with: func [obj body] [do bind body obj] 
 ctx-pack-assets: context [
-    texturePacker: {c:\dev\GDX\libGDX\gdx.jar;c:\dev\GDX\libGDX\extensions\gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2} 
-    dirAssetsRoot: %./Assets/ 
     dirBinUtils: %./Utils/ 
+    dirAssetsRoot: %./Assets/ 
     dirPacks: join dirAssetsRoot %Packs/ 
-    pngQuantExe: "c:\UTILS\pngquant\pngquant.exe" 
+    comment {
+^-^-Required utils can be found here:
+^-^-^-http://code.google.com/p/libgdx/wiki/TexturePacker
+^-^-^-http://code.google.com/p/libgdx/downloads/list
+^-^-^-http://pngquant.org/
+^-} 
+    texturePacker: {./Utils/gdx.jar:./Utils/gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2} 
+    pngQuantExe: dirBinUtils/pngquant 
+    if system/version/4 = 3 [append pngQuantExe %.exe] 
     chNotSpace: complement charset "^/^- " 
     chDigits: charset "0123456789" 
     cmdUseLevel: 1 
@@ -9459,7 +9469,7 @@ ctx-pack-assets: context [
         bitmapName 
         imgFile partId x y xy size orig offset index var value
     ] [
-        srcDir: rejoin [dirAssetsRoot %Bitmaps/ level #"\" name] 
+        srcDir: rejoin [dirAssetsRoot %Bitmaps/ level #"/" name] 
         packFile: join name %.pack 
         unless exists? dirPacks/:packFile [
             if 0 < call/wait/console probe reform [
@@ -9631,7 +9641,6 @@ ctx-pack-assets: context [
             dirBinUtils: to-file dirBinUtils 
             if #"/" <> pick dirBinUtils 1 [insert dirBinUtils what-dir]
         ] [make error! "Unspecified dirBinUtils"] 
-        probe dirBinUtils 
         if all [atf-type none? find [%dxt %etc] atf-type] [atf-type: none] 
         out/clearBuffers 
         out/writeBytes as-binary "LVL" 
