@@ -1,19 +1,11 @@
 package display
 {
-    import flash.errors.IllegalOperationError;
-	import flash.geom.Matrix;
-	import flash.geom.Rectangle;
-    import flash.media.Sound;
 	import flash.system.System;
 	import flash.utils.ByteArray;
 	import starling.display.DisplayObject;
 	import starling.display.DisplayObjectContainer;
-	import starling.display.Image;
 	import starling.display.Quad;
-	import starling.display.Sprite;
 	import starling.filters.ColorMatrixFilter;
-    
-    import starling.textures.Texture;
     
     
     public class TimelineObject extends DisplayObjectContainer

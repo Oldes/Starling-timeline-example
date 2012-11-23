@@ -1,7 +1,6 @@
 package display 
 {
 	import starling.display.Quad;
-	import starling.events.Event;
 	
 	/**
 	 * ...

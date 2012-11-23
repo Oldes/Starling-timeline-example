@@ -1,47 +1,21 @@
 package 
 {
 	
-	import flash.display.Bitmap;
 	import scenes.IntroMenu;
-	
-	import flash.display.Sprite;
-	import flash.geom.Point;
-	import flash.geom.Rectangle;
+
     import flash.ui.Keyboard;
-	import flash.utils.ByteArray;
-    import flash.utils.getDefinitionByName;
-    import flash.utils.getQualifiedClassName;
-	import flash.display.BitmapData;
-	import flash.system.System;
 	import flash.system.Capabilities;
-	import flash.utils.setTimeout;
 
 	import scenes.Mlok;
 	import scenes.Scene;
 
-	import starling.animation.Tween;
-	import starling.animation.Transitions;
-	import starling.events.ResizeEvent;
-	import starling.textures.TextureAtlas;
-
-	
 	import display.Debug;
 	import display.ISensor;
-	import display.SensorQuad;
     
     import starling.core.Starling;
-    import starling.display.BlendMode;
-    import starling.display.Button;
-    import starling.display.Image;
     import starling.display.Sprite;
-	import starling.display.MovieClip;
     import starling.events.Event;
-	import starling.events.Touch;
-	import starling.events.TouchEvent;
     import flash.events.KeyboardEvent;
-
-    import starling.textures.Texture;
-
 
     public final class Game extends Sprite
     {

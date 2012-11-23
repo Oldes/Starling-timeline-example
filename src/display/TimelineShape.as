@@ -3,8 +3,6 @@ package display
 	import flash.utils.ByteArray;
 	import starling.display.DisplayObjectContainer;
 	import starling.display.Graphics;
-	import starling.display.materials.StandardMaterial;
-	import starling.filters.BlurFilter;
 	
 	/**
 	 * ...

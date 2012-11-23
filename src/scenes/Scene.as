@@ -4,10 +4,8 @@ package scenes
 	import display.TimelineObject;
 	import display.TimelineMovie;
 	import starling.display.DisplayObject;
-	import flash.geom.Rectangle;
 	import starling.animation.Tween;
 	import starling.display.DisplayObjectContainer;
-	import starling.display.Quad;
 	import starling.display.Sprite;
 	import starling.core.Starling;
 	import starling.events.Event;
@@ -18,8 +16,6 @@ package scenes
 	
 	import flash.geom.Point;
 	
-	import flash.ui.Mouse;
-    import flash.ui.MouseCursor;
 	import flash.system.Capabilities;
 	import flash.utils.getQualifiedClassName;
 	

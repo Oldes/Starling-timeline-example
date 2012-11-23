@@ -1,12 +1,10 @@
 package 
 {
 	import flash.desktop.NativeApplication;
-	import flash.display.MovieClip;
 	import flash.events.Event;
 	import flash.display.Sprite;
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
-	import flash.display.StageDisplayState;
 	import flash.geom.Rectangle;
 	import flash.system.Capabilities;
 	import flash.ui.Multitouch;

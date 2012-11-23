@@ -2,19 +2,13 @@ package display
 {
     import flash.errors.IllegalOperationError;
 	import flash.geom.Matrix;
-	import flash.geom.Rectangle;
-    import flash.media.Sound;
 	import flash.utils.ByteArray;
 	import starling.display.DisplayObject;
-	import starling.display.DisplayObjectContainer;
-	import starling.display.Image;
 	import starling.core.Starling;
 	import starling.display.Quad;
-	import starling.filters.ColorMatrixFilter;
     
     import starling.animation.IAnimatable;
     import starling.events.Event;
-    import starling.textures.Texture;
     
     /** Dispatched whenever the movie has displayed its last frame. */
     [Event(name="complete", type="starling.events.Event")]

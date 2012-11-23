@@ -1,46 +1,22 @@
 package scenes 
 {
-	import display.TimelineObject;
 	import scenes.Scene;
 	
 	import display.ISensor;
-	import display.SensorQuad;
-	import display.TextureAnim;
 	import display.TimelineMovie;
 	
-	import flash.geom.Rectangle;
-	import flash.geom.Matrix;
 	import flash.geom.Point;
 	import flash.system.System;
-	import flash.display.MovieClip;
 	
-
-	import starling.animation.DelayedCall;
-	import starling.animation.Juggler;
-	import starling.animation.Tween;
-	import starling.animation.Transitions;
 	import starling.display.DisplayObject;
 	import starling.display.DisplayObjectContainer;
-	import starling.display.Image;
-	import starling.display.Quad;
 	import starling.events.EnterFrameEvent;
 	import starling.events.Event;
-	import starling.filters.SpotlightFilter;
-	import starling.textures.Texture;
-	import starling.display.MovieClip;
-	import starling.display.Sprite;
-	import starling.textures.TextureAtlas;
-	import starling.core.Starling;
 	
 	import starling.events.Touch;
 	import starling.events.TouchEvent;
 	import starling.events.TouchPhase;
-	import starling.textures.TextureSmoothing;
 	
-	import flash.ui.Mouse;
-    import flash.ui.MouseCursor;
-	
-	import flash.utils.setTimeout;
 	import flash.utils.getQualifiedClassName;
 	
 	/**
