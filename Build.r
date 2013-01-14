@@ -13,22 +13,27 @@ REBOL [
 	}
 ]
 
-do %/Users/Oldes/Documents/GIT/RS/builds/pack-assets_latest.r ;%scripts/pack-assets.r
+do %scripts/pack-assets.r
 
 ;http://code.google.com/p/libgdx/wiki/TexturePacker
 with ctx-pack-assets [
-	dirBinUtils:   %./Utils/
+	
 	dirAssetsRoot: %./Assets/
-	texturePacker: "./Utils/gdx.jar:./Utils/gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2"
+	
 	switch system/version/4 [
 		2 [;MacOSX
+			dirBinUtils:   %./Utils/
 			pngQuantExe:   dirBinUtils/pngquant
+			texturePacker: "./Utils/gdx.jar:./Utils/gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2"
 		]
 		3 [;Windows
+			dirBinUtils:   %/c/dev/Utils/
 			pngQuantExe:   dirBinUtils/pngquant.exe
+			texturePacker: "c:/dev/Utils/gdx.jar;c:/dev/Utils/gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2"
 		]
 	]	
 ]
+
 
 atf-type: none
 
