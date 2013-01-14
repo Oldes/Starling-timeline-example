@@ -1,10 +1,10 @@
 REBOL [
     Title: "Pack-assets" 
-    Date: 23-Nov-2012/18:33:31+1:00 
+    Date: 28-Dec-2012/15:25:52+1:00 
     Name: none 
-    Version: 0.1.0 
+    Version: 0.1.1 
     File: none 
-    Home: none 
+    Home: https://github.com/Oldes/rs/blob/master/projects-rswf/pack-assets/latest/pack-assets.r 
     Author: "Oldes" 
     Owner: none 
     Rights: none 
@@ -22,9955 +22,1131 @@ REBOL [
     Content: none 
     Email: oldes.huhuman@gmail.com 
     require: none
-] 
-comment {
-#### RS include: %stream-io.r
-#### Title:   "stream-io"
-#### Author:  "Oldes"
-----} 
-stream-io: context [
-    inBuffer: none 
-    availableBits: 0 
-    bitBuffer: none 
-    setStreamBuffer: func [buff] [
-        inBuffer: either port? buff [copy buff] [buff] 
-        availableBits: 0 
-        bitBuffer: none
-    ] 
-    initBitBuffer: does [
-        bitBuffer: first inBuffer 
-        availableBits: 8 
-        inBuffer: next inBuffer
-    ] 
-    clearBuffers: does [
-        if series? inBuffer [clear head inBuffer] 
-        if series? outBuffer [clear head outBuffer] 
-        availableBits: 0 
-        bitBuffer: none 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    readSB: func [nbits [integer!] /local result] [
-        if nbits = 0 [return 0] 
-        result: copy "" 
-        loop nbits [append result readBit] 
-        insert/dup result result/1 (32 - nbits) 
-        to integer! debase/base result 2
-    ] 
-    byteAlign: does [
-        if availableBits > 0 [
-            availableBits: 0 
-            bitBuffer: none
-        ] 
-        inBuffer
-    ] 
-    readBit: has [bit] [
-        unless bitBuffer [
-            bitBuffer: first inBuffer 
-            availableBits: 8 
-            inBuffer: next inBuffer
-        ] 
-        if 0 < bit: 128 and bitBuffer [bit: 1] 
-        either 0 = availableBits: availableBits - 1 [
-            bitBuffer: none
-        ] [
-            bitBuffer: bitBuffer * 2
-        ] 
-        bit
-    ] 
-    readBitLogic: has [bit] [
-        unless bitBuffer [
-            bitBuffer: first inBuffer 
-            availableBits: 8 
-            inBuffer: next inBuffer
-        ] 
-        bit: (128 and bitBuffer) > 0 
-        either 0 = availableBits: availableBits - 1 [
-            bitBuffer: none
-        ] [
-            bitBuffer: bitBuffer * 2
-        ] 
-        bit
-    ] 
-    readUB: func [nbits [integer!] /local result nb x] [
-        if nbits = 0 [return 0] 
-        result: 0 nb: nbits 
-        while [nbits > 0] [
-            unless bitBuffer [
-                bitBuffer: first inBuffer 
-                inBuffer: next inBuffer 
-                availableBits: 8
-            ] 
-            either availableBits > nbits [
-                availableBits: availableBits - nbits 
-                result: (256 - to integer! x: (2 ** (8 - nbits))) and bitBuffer / x + result 
-                bitBuffer: either availableBits = 0 [none] [to integer! (bitBuffer * (2 ** nbits))] 
-                return to integer! result 
-                break
-            ] [
-                result: ((255 and bitBuffer) / (2 ** (8 - availableBits))) * (2 ** (nb - availableBits)) + result 
-                nbits: nbits - availableBits 
-                bitBuffer: none 
-                availableBits: 0
-            ]
-        ] 
-        to integer! result
-    ] 
-    readByte: func [/local byte] [
-        byte: copy/part inBuffer 1 
-        inBuffer: next inBuffer 
-        byte
-    ] 
-    readBytes: func [nbytes /local bytes] [
-        bytes: copy/part inBuffer 
-        inBuffer: skip inBuffer nbytes 
-        bytes
-    ] 
-    readPair: has [nbits] [
-        nbits: readUB 5 
-        reduce [readFB nbits readFB nbits]
-    ] 
-    readSBPair: has [nbits] [
-        nbits: readUB 5 
-        reduce [readSB nbits readSB nbits]
-    ] 
-    readFB: func [nbits /local] [
-        (readSB nBits) / 65536.0
-    ] 
-    readRect: has [nbits result] [
-        byteAlign 
-        nbits: readUB 5 
-        result: reduce [
-            readSB nbits 
-            readSB nbits 
-            readSB nbits 
-            readSB nbits
-        ] 
-        byteAlign 
-        result
-    ] 
-    readBytesRev: func [nbytes] [
-        reverse 
-        copy/part inBuffer 
-        inBuffer: skip inBuffer nbytes
-    ] 
-    readBytesArray: func [
-        {Slices the binary data to parts which length is specified in the bytes block} 
-        bytes [block!] 
-        /local result b
-    ] [
-        result: copy [] 
-        while [not tail? bytes] [
-            insert tail result readBytes bytes/1 
-            bytes: next bytes
-        ] 
-        result
-    ] 
-    readUI8: has [i] [i: first inBuffer inBuffer: next inBuffer i] 
-    readUI16: func [] [to integer! readBytesRev 2] 
-    readUI32: func [] [to integer! readBytesRev 4] 
-    readSI8: has [i] [
-        i: first inBuffer inBuffer: next inBuffer 
-        if i > 127 [
-            i: (i and 127) - 128
-        ] 
-        i
-    ] 
-    readSI16: has [i] [
-        i: to integer! readBytesRev 2 
-        if i > 32767 [
-            i: (i and 32767) - 32768
-        ] 
-        i
-    ] 
-    readS24: has [i] [
-        i: to integer! readBytesRev 3 
-        if i > 8388607 [
-            i: (i and 8388607) - 8388608
-        ] 
-        i
-    ] 
-    readUI16le: :readUI16 
-    readUI32le: :readUI32 
-    readSI8le: :readSI8 
-    readSI16le: :readSI16 
-    readUI16be: func [] [to integer! readBytes 2] 
-    readUI32be: func [] [to integer! readBytes 4] 
-    readSI8be: has [i] [
-        i: first inBuffer inBuffer: next inBuffer 
-        if i > 127 [
-            i: (i and 127) - 128
-        ] 
-        i
-    ] 
-    readSI16be: has [i] [
-        i: to integer! readBytes 2 
-        if i > 32767 [
-            i: (i and 32767) - 32768
-        ] 
-        i
-    ] 
-    readSI32: :readUI32 
-    readRest: has [bytes] [
-        bytes: copy inBuffer 
-        inBuffer: tail inBuffer 
-        bytes
-    ] 
-    readFloat: does [
-        change third float-struct readBytes 4 
-        float-struct/value
-    ] 
-    readUI30: has [r b s] [
-        b: first inBuffer inBuffer: next inBuffer 
-        if b < 128 [return to integer! b] 
-        r: b and 127 
-        s: 128 
-        while [b: first inBuffer inBuffer: next inBuffer] [
-            r: r + (b * s) 
-            if 128 > b [return r] 
-            s: s + 128
-        ]
-    ] 
-    readU32: has [r b s] [
-        r: b: first inBuffer inBuffer: next inBuffer 
-        if r < 128 [return r] 
-        ask "x" 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 127) or (shift/left b 7) 
-        if r < 16384 [probe r ask "2" return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 16383) or (shift/left b 14) 
-        if r < 2097152 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 2097151) or (shift/left b 21) 
-        if r < 268435456 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 268435455) or (shift/left b 28) 
-        r
-    ] 
-    readS32: has [r b] [
-        r: b: first inBuffer inBuffer: next inBuffer 
-        if r < 128 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 127) or (shift/left b 7) 
-        if r < 16384 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 16383) or (shift/left b 14) 
-        if r < 2097152 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 2097151) or (shift/left b 21) 
-        if r < 268435456 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 268435455) or (shift/left b 28) 
-        2 * r
-    ] 
-    readD64: does [
-        from-ieee64 readBytes 8
-    ] 
-    readShort: :readUI16 
-    readLongFloat: func ["reads 4 bytes and converts them to decimal!" /local tmp] [
-        readBytesRev 4
-    ] 
-    readULongFixed: has [l r] [
-        r: readUI16 
-        l: readUI16 
-        load ajoin [l #"." r]
-    ] 
-    readSLongFixed: has [l r] [
-        r: readUI16 
-        l: readSI16 
-        load ajoin [l #"." r]
-    ] 
-    readSShortFixed: has [l r] [
-        r: readUI8 
-        l: readSI8 
-        load ajoin [l #"." r]
-    ] 
-    readRGB: does [to tuple! readBytes 3] 
-    readRGBA: does [to tuple! readBytes 4] 
-    readStringP: has [str] [
-        parse/all inBuffer [copy str to "^@" 1 skip inBuffer:] 
-        inBuffer: as-binary inBuffer 
-        str
-    ] 
-    readStringNum: func [bytes] [
-        as-string readBytes bytes
-    ] 
-    readString: does [
-        head remove back tail copy/part inBuffer inBuffer: find/tail inBuffer #{00}
-    ] 
-    readUTF: does [
-        as-string readBytes readUI16
-    ] 
-    readStringInfo: does [
-        as-string readBytes readUI30
-    ] 
-    skipString: does [inBuffer: find/tail inBuffer #{00}] 
-    readCount: has [c] [
-        either 255 = c: readUI8 [readUI16] [c]
-    ] 
-    readRGBAArray: func [count /local result] [
-        result: copy [] 
-        loop count [append result readRGBA] 
-        result
-    ] 
-    readUI8Array: func [count /local result] [
-        result: copy [] 
-        loop count [append result readUI8] 
-        result
-    ] 
-    readUI32array: readSI32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readUI32] 
-            result
-        ] [none]
-    ] 
-    readU32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readU32] 
-            result
-        ] [none]
-    ] 
-    readS32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readS32] 
-            result
-        ] [none]
-    ] 
-    readD64array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readD64] 
-            result
-        ] [none]
-    ] 
-    readLongFloatArray: func [count /local result] [
-        result: copy [] 
-        loop count [append result readLongFloat] 
-        result
-    ] 
-    readCharCode: func [{Reads sequence of 1-6 octets into 32-bit unsigned integer.} /local us] [
-        us: utf-8/decode-integer inBuffer 
-        inBuffer: skip inBuffer second us 
-        first us
-    ] 
-    comment {
-^-readUCS2Code: func[/local us][
-    ^-us: utf-8/decode-integer inBuffer
-        vs: make block! 2
-        z: to integer! ((first us) / 256)
-        insert vs z
-        z: (first us) - (z * 256)
-        insert tail vs z
-        ;probe vs
-        insert tail result to binary! vs
-       ; probe us
-        xs: skip xs second us
-    ^-inBuffer: skip inBuffer second us
-    ^-first us
-^-]
-^-} 
-    isSetBit?: func [flags [integer!] bit [integer!] /local b] [
-        (b: to integer! (2 ** (bit - 1))) = (b and flags)
-    ] 
-    comment "SKIP FUNCTIONS" 
-    skipRect: does [
-        byteAlign 
-        skipBits (4 * readUB 5) 
-        byteAlign
-    ] 
-    skipPair: does [skipBits (2 * readUB 5)] 
-    skipBits: func [nbits] [
-        if availableBits > 0 [
-            inBuffer: back inBuffer 
-            nbits: 8 - availableBits + nbits
-        ] 
-        inBuffer: skip inBuffer (to integer! (nbits / 8)) 
-        either 0 = availableBits: nbits // 8 [
-            bitBuffer: none
-        ] [
-            bitBuffer: to integer! (2 ** availableBits) * first inBuffer 
-            availableBits: 8 - availableBits 
-            inBuffer: next inBuffer
-        ] 
-        none
-    ] 
-    skipBytes: func [nbytes] [inBuffer: skip inBuffer nbytes] 
-    skipByte: does [inBuffer: next inBuffer] 
-    skipUI16: does [inBuffer: skip inBuffer 2] 
-    skipUI32: does [inBuffer: skip inBuffer 4] 
-    skipRGB: does [inBuffer: skip inBuffer 3] 
-    skipSBPair: does [skipBits (2 * readUB 5)] 
-    skipRGBA: :skipUI32 
-    skipSI16: :skipUI16 
-    skipUI8: :skipByte 
-    comment "WRITE FUNCTIONS" 
-    outBuffer: make binary! 1000 
-    outBitMask: 0 
-    outBitBuffer: none 
-    alignBuffers: does [
-        if availableBits > 0 [
-            availableBits: 0 
-            bitBuffer: none
-        ] 
-        unless none? outBitBuffer [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitMask: 0 
-            outBitBuffer: none
-        ]
-    ] 
-    clearOutBuffer: does [
-        outBuffer: copy #{} 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    outSetStreamBuffer: func [buff] [
-        outBuffer: buff 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    outByteAlign: does [
-        unless none? outBitBuffer [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitMask: 0 
-            outBitBuffer: none
-        ] 
-        outBuffer
-    ] 
-    getUBitsLength: func [
-        {Returns number of bits needed to store unsigned integer value} 
-        value [integer!] "Unsigned integer"
-    ] [
-        either value <= 0 [0] [1 + to integer! log-2 value]
-    ] 
-    getSBitsLength: func [
-        {Returns number of bits needed to store signed integer value} 
-        value [integer!] "Signed integer"
-    ] [
-        either value = 0 [0] [2 + to integer! log-2 abs value]
-    ] 
-    getUBitsLength: func [
-        {Returns number of bits needed to store unsigned integer value} 
-        value [integer!] "unsigned integer"
-    ] [
-        either value = 0 [0] [1 + to integer! log-2 abs value]
-    ] 
-    getSBnBits: func [values] [
-        2 + to integer! log-2 max (first maximum-of values) (abs first minimum-of values)
-    ] 
-    getUBnBits: func [values] [1 + to integer! log-2 (first maximum-of values)
-    ] 
-    ui32-struct: make struct! [value [integer!]] none 
-    ui16-struct: make struct! [value [short]] none 
-    float-struct: make struct! [value [float]] none 
-    writeFloat: func [v [number!]] [
-        float-struct/value: v 
-        outBuffer: insert outBuffer third float-struct
-    ] 
-    writeUI32: writeUnsignedInt: func [i] [
-        ui32-struct/value: to integer! i 
-        outBuffer: insert outBuffer copy third ui32-struct
-    ] 
-    writeUI16: func [i] [
-        ui16-struct/value: to integer! i 
-        outBuffer: insert outBuffer copy third ui16-struct
-    ] 
-    writeUI8: func [i] [
-        outBuffer: insert outBuffer to char! 255 and to integer! i
-    ] 
-    writeUI30: func [i] [
-        case [
-            i < 128 [writeUI8 i] 
-            true [make error! "Unsuported value for writeUI30"]
-        ]
-    ] 
-    comment {^-^-^-
-^-def writeLen(self, l):
-        if l < 0x80:
-            self.writeStr(chr(l))
-        elif l < 0x4000:
-            l |= 0x8000
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        elif l < 0x200000:
-            l |= 0xC00000
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        elif l < 0x10000000:        
-            l |= 0xE0000000         
-            self.writeStr(chr((l >> 24) & 0xFF))
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        else:                       
-            self.writeStr(chr(0xF0))
-            self.writeStr(chr((l >> 24) & 0xFF))
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-} 
-    writeByte: func [byte] [outBuffer: insert outBuffer byte] 
-    writeBytes: func [bytes] [outBuffer: insert outBuffer as-binary bytes] 
-    writeBit: func [bit [integer! logic!]] [
-        unless outBitBuffer [
-            outBitBuffer: 0 
-            outBitMask: 128
-        ] 
-        either logic? bit [
-            if bit [outBitBuffer: outBitBuffer or outBitMask]
-        ] [
-            outBitBuffer: outBitBuffer or (outBitMask and bit)
-        ] 
-        if 1 > outBitMask: outBitMask / 2 [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitBuffer: none
-        ] 
-        outBitBuffer
-    ] 
-    writeBits: func [value [integer!] nBits [integer!]] [
-        loop nBits [
-            writeBit value
-        ]
-    ] 
-    writeFPBits: func [value nBits] [
-        writeSignedBits (value * 65536.0) nBits
-    ] 
-    writeInteger: func [value nBits /local nbitCursor val] [
-        if nBits = 32 [
-            unless outBitBuffer [
-                outBitBuffer: 0 
-                outBitMask: 128
-            ] 
-            if -2147483648 = (-2147483648 and value) [
-                outBitBuffer: outBitBuffer or outBitMask
-            ] 
-            if 1 > outBitMask: outBitMask / 2 [
-                outBuffer: insert outBuffer to char! outBitBuffer 
-                outBitBuffer: none
-            ] 
-            nBits: 31
-        ] 
-        nbitCursor: to integer! power 2 (nBits - 1) 
-        while [nbitCursor >= 1] [
-            unless outBitBuffer [
-                outBitBuffer: 0 
-                outBitMask: 128
-            ] 
-            if 0 < (nbitCursor and value) [
-                outBitBuffer: outBitBuffer or outBitMask
-            ] 
-            if 1 > outBitMask: outBitMask / 2 [
-                outBuffer: insert outBuffer to char! outBitBuffer 
-                outBitBuffer: none
-            ] 
-            nbitCursor: nbitCursor / 2
-        ]
-    ] 
-    writeUB: :writeInteger 
-    writeSB: func [value [integer!] nBits /local] [
-        if nBits < bitsNeeded: getSBitsLength value [
-            throw make error! reform ["IO: At least" bitsNeeded "bits needed for representation of" value "(writeSB)"]
-        ] 
-        writeInteger value nBits
-    ] 
-    writeFB: func [value [number!] nBits /local x y fb] [
-        writeSB to integer! (value * 65536.0) nBits
-    ] 
-    writeSBs: func [values [block!] nbits /local bitsNeeded] [
-        bitsNeeded: 1 + to integer! log-2 max (first maximum-of values) (abs first minimum-of values) 
-        if nBits < bitsNeeded [
-            throw make error! reform ["IO: At least" bitsNeeded "bits needed for representation of" value "(writeSBs)"]
-        ] 
-        forall values [
-            writeInteger values/1 nBits
-        ]
-    ] 
-    writeUBs: func [values [block!] nBits] [
-        forall values [
-            writeInteger max 0 values/1 nBits
-        ]
-    ] 
-    writeRect: func [corners /local nBits] [
-        outByteAlign 
-        nBits: 2 + to integer! log-2 max (first maximum-of corners) (abs first minimum-of corners) 
-        writeInteger nBits 5 
-        forall corners [
-            writeInteger corners/1 nBits
-        ] 
-        outByteAlign
-    ] 
-    writeString: func [value] [writeBytes join as-binary value #{00}] 
-    writeUTF: func [value] [
-        writeUI16 length? value 
-        writeBytes value
-    ] 
-    writePair: func [value [pair! block!] /local nBits] [
-        v1: value/1 
-        v2: value/2 
-        nBits: 16 + getSBitsLength to integer! (round max abs v1 abs v2) 
-        writeUB nBits 5 
-        writeFB v1 nbits 
-        writeFB v2 nbits
-    ] 
-    writeSBPair: func [value [pair! block!] /local v1 v2 nBits x y] [
-        v1: value/1 
-        v2: value/2 
-        nBits: getSBitsLength to integer! max abs v1 abs v2 
-        writeUB nBits 5 
-        writeSB v1 nbits 
-        writeSB v2 nbits
-    ] 
-    readLongFloat: func ["reads 4 bytes and converts them to decimal!" /local tmp] [
-        readBytesRev 4
-    ] 
-    writeCount: func [c] [
-        either c < 255 [writeUI8 c] [writeByte #{FF} writeUI16 c]
-    ] 
-    carryCount: has [c] [
-        either 255 > c: readUI8 [writeUI8 c] [writeByte #{FF} writeUI16 c: readUI16] c
-    ] 
-    carryBytes: func [num] [writeBytes readBytes num] 
-    carryBitLogic: has [b] [writeBit b: readBitLogic b] 
-    carrySBPair: carryPair: has [nBits] [
-        nBits: readUB 5 
-        writeUB nBits 5 
-        loop (2 * nBits) [
-            writeBit readBitLogic
-        ]
-    ] 
-    carryBits: func [num] [loop num [writeBit readBitLogic]] 
-    carryUI8: has [v] [writeUI8 v: readUI8 v] 
-    carryUI16: has [v] [writeUI16 v: readUI16 v] 
-    carryUB: func [nBits /local v] [writeUB v: readUB nBits nBits v] 
-    carrySB: func [nBits /local v] [writeSB v: readSB nBits nBits v] 
-    carryString: does [writeString readString]
-] 
-comment {
-system/options/binary-base: 2
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeBit true
-^-writePair [14.1421203613281 14.1421203613281]
-^-writeBit true
-^-writePair [14.1421203613281 -14.1421203613281]
-^-outByteAlign
-^-probe enbase/base x 16
-]
-
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeUI8 2
-^-b: index? outBuffer
-^-writeUI8 3
-^-probe outBuffer: at head outBuffer b
-^-writeUI8 4
-^-
-^-setStreamBuffer copy head outBuffer
-^-probe readUI8
-^-probe readUI8
-^-probe readUI8
-]
-
-
-system/options/binary-base: 2
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeBit true
-^-writePair [14.1421203613281 14.1421203613281]
-^-writeBit true
-^-writePair [14.1421203613281 -14.1421203613281]
-^-outByteAlign
-^-probe enbase/base x 16
-]
-
-
-with s [
-^-setStreamBuffer copy head outBuffer
-^-;setStreamBuffer copy #{D5C48C4E2462D5C48C52DB9E0000100BD8FA0E97}
-^-probe reduce [
-^-^-either readBitLogic [ readPair ][none] ;scale
-^-^-either readBitLogic [ readPair ][none] ;rotate
-^-]
-]
-;halt
-s/outSetStreamBuffer x: copy #{}
-s/writePair [3.47296355333861 -3.472963553338612]
-s/outByteAlign
-probe x 
-
-s/setStreamBuffer copy head s/outBuffer
-clear head s/outBuffer
-probe s/readPair
-
-
-s/outByteAlign
-probe head s/outBuffer
-
-
-system/options/binary-base: 2
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-s/writeFB 20 22
-s/outByteAlign
-probe x 
-
-s/setStreamBuffer head s/outBuffer
-probe s/readFB 22
-
-s/writeBit 0
-s/writeBit 0
-s/writeBit 0
-s/writeBit 1
-s/writeSBPair [2799 940]
-s/writeBit 0
-s/writeBit 0
-s/writeBit 0
-s/writeBit 1
-s/writeBit 1
-s/writeUB 11 4
-
-
-;s/writeUB 32 5
-;s/writeInteger 1 6
-;s/writeSB -22106 32
-;s/writePair [0.707118333714809 0.707118333714809]
-;s/writeRect [100 10 30 -210] 5
-;s/writeFB 3.0 19
-;s/writeFB 0.707118333714809 19
-;s/writePair [10 2.2]
-;s/writeSB -22 9
-;s/writeSBPair [-80000 2460]
-;s/outByteAlign
-;s/writeString "test"
-;s/writeRect [100 10 30 10]
-;s/writeInteger 0 2
-;s/writeSB -2 3
-;s/writeInteger 10 6
-;s/writeSBPair [ 0 0 ]
-s/outByteAlign
-
-probe x 
-
-s/setStreamBuffer head s/outBuffer
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readSBPair
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readUB 4
-;probe s/readUB 5
-;probe s/readUB 1
-;probe s/readUB 6
-;probe s/readSB 32
-;probe s/readPair
-;probe s/readRect
-;probe s/readFB 19
-;probe s/readFB 19
-;probe s/readPair
-;probe s/readSB 9
-;probe s/readSBPair
-;probe s/readSBPair
-;probe as-string s/readString
-
-probe x ; head s/outBuffer
-} 
-comment "---- end of RS include %stream-io.r ----" 
-comment {
-#### RS include: %form-timeline.r
-#### Title:   "form-timeline"
-#### Author:  "Oldes"
-----} 
-comment {
-#### RS include: %swf-parser.r
-#### Title:   "Swf-parser"
-#### Author:  "David Oliva (commercial)"
-----} 
-comment {
-#### RS include: %r2-forward.r
-#### Title:   "R2-forward"
-#### Author:  "Oldes"
-----} 
-funct: func [
-    "Defines a function with all set-words as locals." 
-    [catch] 
-    spec [block!] {Help string (opt) followed by arg words (and opt type and string)} 
-    body [block!] "The body block of the function" 
-    /with "Define or use a persistent object (self)" 
-    object [object! block!] "The object or spec" 
-    /extern words [block!] "These words are not local" 
-    /local r ws wb a
-] [
-    spec: copy/deep spec 
-    body: copy/deep body 
-    ws: make block! length? spec 
-    parse spec [any [
-            set-word! | set a any-word! (insert tail ws to-word a) | skip
-        ]] 
-    if with [
-        unless object? object [object: make object! object] 
-        bind body object 
-        insert tail ws first object
-    ] 
-    insert tail ws words 
-    wb: make block! 12 
-    parse body r: [any [
-            set a set-word! (insert tail wb to-word a) | 
-            hash! | into r | skip
-        ]] 
-    unless empty? wb: exclude wb ws [
-        remove find wb 'local 
-        unless find spec /local [insert tail spec /local] 
-        insert tail spec wb
-    ] 
-    throw-on-error [make function! spec body]
-] 
-comment "---- end of RS include %r2-forward.r ----" 
-comment {
-#### RS include: %stream-io.r
-#### Title:   "stream-io"
-#### Author:  "Oldes"
-----} 
-stream-io: context [
-    inBuffer: none 
-    availableBits: 0 
-    bitBuffer: none 
-    setStreamBuffer: func [buff] [
-        inBuffer: either port? buff [copy buff] [buff] 
-        availableBits: 0 
-        bitBuffer: none
-    ] 
-    initBitBuffer: does [
-        bitBuffer: first inBuffer 
-        availableBits: 8 
-        inBuffer: next inBuffer
-    ] 
-    clearBuffers: does [
-        if series? inBuffer [clear head inBuffer] 
-        if series? outBuffer [clear head outBuffer] 
-        availableBits: 0 
-        bitBuffer: none 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    readSB: func [nbits [integer!] /local result] [
-        if nbits = 0 [return 0] 
-        result: copy "" 
-        loop nbits [append result readBit] 
-        insert/dup result result/1 (32 - nbits) 
-        to integer! debase/base result 2
-    ] 
-    byteAlign: does [
-        if availableBits > 0 [
-            availableBits: 0 
-            bitBuffer: none
-        ] 
-        inBuffer
-    ] 
-    readBit: has [bit] [
-        unless bitBuffer [
-            bitBuffer: first inBuffer 
-            availableBits: 8 
-            inBuffer: next inBuffer
-        ] 
-        if 0 < bit: 128 and bitBuffer [bit: 1] 
-        either 0 = availableBits: availableBits - 1 [
-            bitBuffer: none
-        ] [
-            bitBuffer: bitBuffer * 2
-        ] 
-        bit
-    ] 
-    readBitLogic: has [bit] [
-        unless bitBuffer [
-            bitBuffer: first inBuffer 
-            availableBits: 8 
-            inBuffer: next inBuffer
-        ] 
-        bit: (128 and bitBuffer) > 0 
-        either 0 = availableBits: availableBits - 1 [
-            bitBuffer: none
-        ] [
-            bitBuffer: bitBuffer * 2
-        ] 
-        bit
-    ] 
-    readUB: func [nbits [integer!] /local result nb x] [
-        if nbits = 0 [return 0] 
-        result: 0 nb: nbits 
-        while [nbits > 0] [
-            unless bitBuffer [
-                bitBuffer: first inBuffer 
-                inBuffer: next inBuffer 
-                availableBits: 8
-            ] 
-            either availableBits > nbits [
-                availableBits: availableBits - nbits 
-                result: (256 - to integer! x: (2 ** (8 - nbits))) and bitBuffer / x + result 
-                bitBuffer: either availableBits = 0 [none] [to integer! (bitBuffer * (2 ** nbits))] 
-                return to integer! result 
-                break
-            ] [
-                result: ((255 and bitBuffer) / (2 ** (8 - availableBits))) * (2 ** (nb - availableBits)) + result 
-                nbits: nbits - availableBits 
-                bitBuffer: none 
-                availableBits: 0
-            ]
-        ] 
-        to integer! result
-    ] 
-    readByte: func [/local byte] [
-        byte: copy/part inBuffer 1 
-        inBuffer: next inBuffer 
-        byte
-    ] 
-    readBytes: func [nbytes /local bytes] [
-        bytes: copy/part inBuffer 
-        inBuffer: skip inBuffer nbytes 
-        bytes
-    ] 
-    readPair: has [nbits] [
-        nbits: readUB 5 
-        reduce [readFB nbits readFB nbits]
-    ] 
-    readSBPair: has [nbits] [
-        nbits: readUB 5 
-        reduce [readSB nbits readSB nbits]
-    ] 
-    readFB: func [nbits /local] [
-        (readSB nBits) / 65536.0
-    ] 
-    readRect: has [nbits result] [
-        byteAlign 
-        nbits: readUB 5 
-        result: reduce [
-            readSB nbits 
-            readSB nbits 
-            readSB nbits 
-            readSB nbits
-        ] 
-        byteAlign 
-        result
-    ] 
-    readBytesRev: func [nbytes] [
-        reverse 
-        copy/part inBuffer 
-        inBuffer: skip inBuffer nbytes
-    ] 
-    readBytesArray: func [
-        {Slices the binary data to parts which length is specified in the bytes block} 
-        bytes [block!] 
-        /local result b
-    ] [
-        result: copy [] 
-        while [not tail? bytes] [
-            insert tail result readBytes bytes/1 
-            bytes: next bytes
-        ] 
-        result
-    ] 
-    readUI8: has [i] [i: first inBuffer inBuffer: next inBuffer i] 
-    readUI16: func [] [to integer! readBytesRev 2] 
-    readUI32: func [] [to integer! readBytesRev 4] 
-    readSI8: has [i] [
-        i: first inBuffer inBuffer: next inBuffer 
-        if i > 127 [
-            i: (i and 127) - 128
-        ] 
-        i
-    ] 
-    readSI16: has [i] [
-        i: to integer! readBytesRev 2 
-        if i > 32767 [
-            i: (i and 32767) - 32768
-        ] 
-        i
-    ] 
-    readS24: has [i] [
-        i: to integer! readBytesRev 3 
-        if i > 8388607 [
-            i: (i and 8388607) - 8388608
-        ] 
-        i
-    ] 
-    readUI16le: :readUI16 
-    readUI32le: :readUI32 
-    readSI8le: :readSI8 
-    readSI16le: :readSI16 
-    readUI16be: func [] [to integer! readBytes 2] 
-    readUI32be: func [] [to integer! readBytes 4] 
-    readSI8be: has [i] [
-        i: first inBuffer inBuffer: next inBuffer 
-        if i > 127 [
-            i: (i and 127) - 128
-        ] 
-        i
-    ] 
-    readSI16be: has [i] [
-        i: to integer! readBytes 2 
-        if i > 32767 [
-            i: (i and 32767) - 32768
-        ] 
-        i
-    ] 
-    readSI32: :readUI32 
-    readRest: has [bytes] [
-        bytes: copy inBuffer 
-        inBuffer: tail inBuffer 
-        bytes
-    ] 
-    readFloat: does [
-        change third float-struct readBytes 4 
-        float-struct/value
-    ] 
-    readUI30: has [r b s] [
-        b: first inBuffer inBuffer: next inBuffer 
-        if b < 128 [return to integer! b] 
-        r: b and 127 
-        s: 128 
-        while [b: first inBuffer inBuffer: next inBuffer] [
-            r: r + (b * s) 
-            if 128 > b [return r] 
-            s: s + 128
-        ]
-    ] 
-    readU32: has [r b s] [
-        r: b: first inBuffer inBuffer: next inBuffer 
-        if r < 128 [return r] 
-        ask "x" 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 127) or (shift/left b 7) 
-        if r < 16384 [probe r ask "2" return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 16383) or (shift/left b 14) 
-        if r < 2097152 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 2097151) or (shift/left b 21) 
-        if r < 268435456 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 268435455) or (shift/left b 28) 
-        r
-    ] 
-    readS32: has [r b] [
-        r: b: first inBuffer inBuffer: next inBuffer 
-        if r < 128 [return r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 127) or (shift/left b 7) 
-        if r < 16384 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 16383) or (shift/left b 14) 
-        if r < 2097152 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 2097151) or (shift/left b 21) 
-        if r < 268435456 [return 2 * r] 
-        b: first inBuffer inBuffer: next inBuffer 
-        r: (r and 268435455) or (shift/left b 28) 
-        2 * r
-    ] 
-    readD64: does [
-        from-ieee64 readBytes 8
-    ] 
-    readShort: :readUI16 
-    readLongFloat: func ["reads 4 bytes and converts them to decimal!" /local tmp] [
-        readBytesRev 4
-    ] 
-    readULongFixed: has [l r] [
-        r: readUI16 
-        l: readUI16 
-        load ajoin [l #"." r]
-    ] 
-    readSLongFixed: has [l r] [
-        r: readUI16 
-        l: readSI16 
-        load ajoin [l #"." r]
-    ] 
-    readSShortFixed: has [l r] [
-        r: readUI8 
-        l: readSI8 
-        load ajoin [l #"." r]
-    ] 
-    readRGB: does [to tuple! readBytes 3] 
-    readRGBA: does [to tuple! readBytes 4] 
-    readStringP: has [str] [
-        parse/all inBuffer [copy str to "^@" 1 skip inBuffer:] 
-        inBuffer: as-binary inBuffer 
-        str
-    ] 
-    readStringNum: func [bytes] [
-        as-string readBytes bytes
-    ] 
-    readString: does [
-        head remove back tail copy/part inBuffer inBuffer: find/tail inBuffer #{00}
-    ] 
-    readUTF: does [
-        as-string readBytes readUI16
-    ] 
-    readStringInfo: does [
-        as-string readBytes readUI30
-    ] 
-    skipString: does [inBuffer: find/tail inBuffer #{00}] 
-    readCount: has [c] [
-        either 255 = c: readUI8 [readUI16] [c]
-    ] 
-    readRGBAArray: func [count /local result] [
-        result: copy [] 
-        loop count [append result readRGBA] 
-        result
-    ] 
-    readUI8Array: func [count /local result] [
-        result: copy [] 
-        loop count [append result readUI8] 
-        result
-    ] 
-    readUI32array: readSI32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readUI32] 
-            result
-        ] [none]
-    ] 
-    readU32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readU32] 
-            result
-        ] [none]
-    ] 
-    readS32array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readS32] 
-            result
-        ] [none]
-    ] 
-    readD64array: func [/local count result] [
-        count: readUI30 - 1 
-        either count >= 0 [
-            result: make block! count 
-            loop count [append result readD64] 
-            result
-        ] [none]
-    ] 
-    readLongFloatArray: func [count /local result] [
-        result: copy [] 
-        loop count [append result readLongFloat] 
-        result
-    ] 
-    readCharCode: func [{Reads sequence of 1-6 octets into 32-bit unsigned integer.} /local us] [
-        us: utf-8/decode-integer inBuffer 
-        inBuffer: skip inBuffer second us 
-        first us
-    ] 
-    comment {
-^-readUCS2Code: func[/local us][
-    ^-us: utf-8/decode-integer inBuffer
-        vs: make block! 2
-        z: to integer! ((first us) / 256)
-        insert vs z
-        z: (first us) - (z * 256)
-        insert tail vs z
-        ;probe vs
-        insert tail result to binary! vs
-       ; probe us
-        xs: skip xs second us
-    ^-inBuffer: skip inBuffer second us
-    ^-first us
-^-]
-^-} 
-    isSetBit?: func [flags [integer!] bit [integer!] /local b] [
-        (b: to integer! (2 ** (bit - 1))) = (b and flags)
-    ] 
-    comment "SKIP FUNCTIONS" 
-    skipRect: does [
-        byteAlign 
-        skipBits (4 * readUB 5) 
-        byteAlign
-    ] 
-    skipPair: does [skipBits (2 * readUB 5)] 
-    skipBits: func [nbits] [
-        if availableBits > 0 [
-            inBuffer: back inBuffer 
-            nbits: 8 - availableBits + nbits
-        ] 
-        inBuffer: skip inBuffer (to integer! (nbits / 8)) 
-        either 0 = availableBits: nbits // 8 [
-            bitBuffer: none
-        ] [
-            bitBuffer: to integer! (2 ** availableBits) * first inBuffer 
-            availableBits: 8 - availableBits 
-            inBuffer: next inBuffer
-        ] 
-        none
-    ] 
-    skipBytes: func [nbytes] [inBuffer: skip inBuffer nbytes] 
-    skipByte: does [inBuffer: next inBuffer] 
-    skipUI16: does [inBuffer: skip inBuffer 2] 
-    skipUI32: does [inBuffer: skip inBuffer 4] 
-    skipRGB: does [inBuffer: skip inBuffer 3] 
-    skipSBPair: does [skipBits (2 * readUB 5)] 
-    skipRGBA: :skipUI32 
-    skipSI16: :skipUI16 
-    skipUI8: :skipByte 
-    comment "WRITE FUNCTIONS" 
-    outBuffer: make binary! 1000 
-    outBitMask: 0 
-    outBitBuffer: none 
-    alignBuffers: does [
-        if availableBits > 0 [
-            availableBits: 0 
-            bitBuffer: none
-        ] 
-        unless none? outBitBuffer [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitMask: 0 
-            outBitBuffer: none
-        ]
-    ] 
-    clearOutBuffer: does [
-        outBuffer: copy #{} 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    outSetStreamBuffer: func [buff] [
-        outBuffer: buff 
-        outBitMask: 0 
-        outBitBuffer: none
-    ] 
-    outByteAlign: does [
-        unless none? outBitBuffer [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitMask: 0 
-            outBitBuffer: none
-        ] 
-        outBuffer
-    ] 
-    getUBitsLength: func [
-        {Returns number of bits needed to store unsigned integer value} 
-        value [integer!] "Unsigned integer"
-    ] [
-        either value <= 0 [0] [1 + to integer! log-2 value]
-    ] 
-    getSBitsLength: func [
-        {Returns number of bits needed to store signed integer value} 
-        value [integer!] "Signed integer"
-    ] [
-        either value = 0 [0] [2 + to integer! log-2 abs value]
-    ] 
-    getUBitsLength: func [
-        {Returns number of bits needed to store unsigned integer value} 
-        value [integer!] "unsigned integer"
-    ] [
-        either value = 0 [0] [1 + to integer! log-2 abs value]
-    ] 
-    getSBnBits: func [values] [
-        2 + to integer! log-2 max (first maximum-of values) (abs first minimum-of values)
-    ] 
-    getUBnBits: func [values] [1 + to integer! log-2 (first maximum-of values)
-    ] 
-    ui32-struct: make struct! [value [integer!]] none 
-    ui16-struct: make struct! [value [short]] none 
-    float-struct: make struct! [value [float]] none 
-    writeFloat: func [v [number!]] [
-        float-struct/value: v 
-        outBuffer: insert outBuffer third float-struct
-    ] 
-    writeUI32: writeUnsignedInt: func [i] [
-        ui32-struct/value: to integer! i 
-        outBuffer: insert outBuffer copy third ui32-struct
-    ] 
-    writeUI16: func [i] [
-        ui16-struct/value: to integer! i 
-        outBuffer: insert outBuffer copy third ui16-struct
-    ] 
-    writeUI8: func [i] [
-        outBuffer: insert outBuffer to char! 255 and to integer! i
-    ] 
-    writeUI30: func [i] [
-        case [
-            i < 128 [writeUI8 i] 
-            true [make error! "Unsuported value for writeUI30"]
-        ]
-    ] 
-    comment {^-^-^-
-^-def writeLen(self, l):
-        if l < 0x80:
-            self.writeStr(chr(l))
-        elif l < 0x4000:
-            l |= 0x8000
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        elif l < 0x200000:
-            l |= 0xC00000
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        elif l < 0x10000000:        
-            l |= 0xE0000000         
-            self.writeStr(chr((l >> 24) & 0xFF))
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-        else:                       
-            self.writeStr(chr(0xF0))
-            self.writeStr(chr((l >> 24) & 0xFF))
-            self.writeStr(chr((l >> 16) & 0xFF))
-            self.writeStr(chr((l >> 8) & 0xFF))
-            self.writeStr(chr(l & 0xFF))
-} 
-    writeByte: func [byte] [outBuffer: insert outBuffer byte] 
-    writeBytes: func [bytes] [outBuffer: insert outBuffer as-binary bytes] 
-    writeBit: func [bit [integer! logic!]] [
-        unless outBitBuffer [
-            outBitBuffer: 0 
-            outBitMask: 128
-        ] 
-        either logic? bit [
-            if bit [outBitBuffer: outBitBuffer or outBitMask]
-        ] [
-            outBitBuffer: outBitBuffer or (outBitMask and bit)
-        ] 
-        if 1 > outBitMask: outBitMask / 2 [
-            outBuffer: insert outBuffer to char! outBitBuffer 
-            outBitBuffer: none
-        ] 
-        outBitBuffer
-    ] 
-    writeBits: func [value [integer!] nBits [integer!]] [
-        loop nBits [
-            writeBit value
-        ]
-    ] 
-    writeFPBits: func [value nBits] [
-        writeSignedBits (value * 65536.0) nBits
-    ] 
-    writeInteger: func [value nBits /local nbitCursor val] [
-        if nBits = 32 [
-            unless outBitBuffer [
-                outBitBuffer: 0 
-                outBitMask: 128
-            ] 
-            if -2147483648 = (-2147483648 and value) [
-                outBitBuffer: outBitBuffer or outBitMask
-            ] 
-            if 1 > outBitMask: outBitMask / 2 [
-                outBuffer: insert outBuffer to char! outBitBuffer 
-                outBitBuffer: none
-            ] 
-            nBits: 31
-        ] 
-        nbitCursor: to integer! power 2 (nBits - 1) 
-        while [nbitCursor >= 1] [
-            unless outBitBuffer [
-                outBitBuffer: 0 
-                outBitMask: 128
-            ] 
-            if 0 < (nbitCursor and value) [
-                outBitBuffer: outBitBuffer or outBitMask
-            ] 
-            if 1 > outBitMask: outBitMask / 2 [
-                outBuffer: insert outBuffer to char! outBitBuffer 
-                outBitBuffer: none
-            ] 
-            nbitCursor: nbitCursor / 2
-        ]
-    ] 
-    writeUB: :writeInteger 
-    writeSB: func [value [integer!] nBits /local] [
-        if nBits < bitsNeeded: getSBitsLength value [
-            throw make error! reform ["IO: At least" bitsNeeded "bits needed for representation of" value "(writeSB)"]
-        ] 
-        writeInteger value nBits
-    ] 
-    writeFB: func [value [number!] nBits /local x y fb] [
-        writeSB to integer! (value * 65536.0) nBits
-    ] 
-    writeSBs: func [values [block!] nbits /local bitsNeeded] [
-        bitsNeeded: 1 + to integer! log-2 max (first maximum-of values) (abs first minimum-of values) 
-        if nBits < bitsNeeded [
-            throw make error! reform ["IO: At least" bitsNeeded "bits needed for representation of" value "(writeSBs)"]
-        ] 
-        forall values [
-            writeInteger values/1 nBits
-        ]
-    ] 
-    writeUBs: func [values [block!] nBits] [
-        forall values [
-            writeInteger max 0 values/1 nBits
-        ]
-    ] 
-    writeRect: func [corners /local nBits] [
-        outByteAlign 
-        nBits: 2 + to integer! log-2 max (first maximum-of corners) (abs first minimum-of corners) 
-        writeInteger nBits 5 
-        forall corners [
-            writeInteger corners/1 nBits
-        ] 
-        outByteAlign
-    ] 
-    writeString: func [value] [writeBytes join as-binary value #{00}] 
-    writeUTF: func [value] [
-        writeUI16 length? value 
-        writeBytes value
-    ] 
-    writePair: func [value [pair! block!] /local nBits] [
-        v1: value/1 
-        v2: value/2 
-        nBits: 16 + getSBitsLength to integer! (round max abs v1 abs v2) 
-        writeUB nBits 5 
-        writeFB v1 nbits 
-        writeFB v2 nbits
-    ] 
-    writeSBPair: func [value [pair! block!] /local v1 v2 nBits x y] [
-        v1: value/1 
-        v2: value/2 
-        nBits: getSBitsLength to integer! max abs v1 abs v2 
-        writeUB nBits 5 
-        writeSB v1 nbits 
-        writeSB v2 nbits
-    ] 
-    readLongFloat: func ["reads 4 bytes and converts them to decimal!" /local tmp] [
-        readBytesRev 4
-    ] 
-    writeCount: func [c] [
-        either c < 255 [writeUI8 c] [writeByte #{FF} writeUI16 c]
-    ] 
-    carryCount: has [c] [
-        either 255 > c: readUI8 [writeUI8 c] [writeByte #{FF} writeUI16 c: readUI16] c
-    ] 
-    carryBytes: func [num] [writeBytes readBytes num] 
-    carryBitLogic: has [b] [writeBit b: readBitLogic b] 
-    carrySBPair: carryPair: has [nBits] [
-        nBits: readUB 5 
-        writeUB nBits 5 
-        loop (2 * nBits) [
-            writeBit readBitLogic
-        ]
-    ] 
-    carryBits: func [num] [loop num [writeBit readBitLogic]] 
-    carryUI8: has [v] [writeUI8 v: readUI8 v] 
-    carryUI16: has [v] [writeUI16 v: readUI16 v] 
-    carryUB: func [nBits /local v] [writeUB v: readUB nBits nBits v] 
-    carrySB: func [nBits /local v] [writeSB v: readSB nBits nBits v] 
-    carryString: does [writeString readString]
-] 
-comment {
-system/options/binary-base: 2
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeBit true
-^-writePair [14.1421203613281 14.1421203613281]
-^-writeBit true
-^-writePair [14.1421203613281 -14.1421203613281]
-^-outByteAlign
-^-probe enbase/base x 16
-]
-
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeUI8 2
-^-b: index? outBuffer
-^-writeUI8 3
-^-probe outBuffer: at head outBuffer b
-^-writeUI8 4
-^-
-^-setStreamBuffer copy head outBuffer
-^-probe readUI8
-^-probe readUI8
-^-probe readUI8
-]
-
-
-system/options/binary-base: 2
-
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-with s [
-^-writeBit true
-^-writePair [14.1421203613281 14.1421203613281]
-^-writeBit true
-^-writePair [14.1421203613281 -14.1421203613281]
-^-outByteAlign
-^-probe enbase/base x 16
-]
-
-
-with s [
-^-setStreamBuffer copy head outBuffer
-^-;setStreamBuffer copy #{D5C48C4E2462D5C48C52DB9E0000100BD8FA0E97}
-^-probe reduce [
-^-^-either readBitLogic [ readPair ][none] ;scale
-^-^-either readBitLogic [ readPair ][none] ;rotate
-^-]
-]
-;halt
-s/outSetStreamBuffer x: copy #{}
-s/writePair [3.47296355333861 -3.472963553338612]
-s/outByteAlign
-probe x 
-
-s/setStreamBuffer copy head s/outBuffer
-clear head s/outBuffer
-probe s/readPair
-
-
-s/outByteAlign
-probe head s/outBuffer
-
-
-system/options/binary-base: 2
-s: make stream-io []
-s/outSetStreamBuffer x: copy #{}
-s/writeFB 20 22
-s/outByteAlign
-probe x 
-
-s/setStreamBuffer head s/outBuffer
-probe s/readFB 22
-
-s/writeBit 0
-s/writeBit 0
-s/writeBit 0
-s/writeBit 1
-s/writeSBPair [2799 940]
-s/writeBit 0
-s/writeBit 0
-s/writeBit 0
-s/writeBit 1
-s/writeBit 1
-s/writeUB 11 4
-
-
-;s/writeUB 32 5
-;s/writeInteger 1 6
-;s/writeSB -22106 32
-;s/writePair [0.707118333714809 0.707118333714809]
-;s/writeRect [100 10 30 -210] 5
-;s/writeFB 3.0 19
-;s/writeFB 0.707118333714809 19
-;s/writePair [10 2.2]
-;s/writeSB -22 9
-;s/writeSBPair [-80000 2460]
-;s/outByteAlign
-;s/writeString "test"
-;s/writeRect [100 10 30 10]
-;s/writeInteger 0 2
-;s/writeSB -2 3
-;s/writeInteger 10 6
-;s/writeSBPair [ 0 0 ]
-s/outByteAlign
-
-probe x 
-
-s/setStreamBuffer head s/outBuffer
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readSBPair
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readBit
-probe s/readUB 4
-;probe s/readUB 5
-;probe s/readUB 1
-;probe s/readUB 6
-;probe s/readSB 32
-;probe s/readPair
-;probe s/readRect
-;probe s/readFB 19
-;probe s/readFB 19
-;probe s/readPair
-;probe s/readSB 9
-;probe s/readSBPair
-;probe s/readSBPair
-;probe as-string s/readString
-
-probe x ; head s/outBuffer
-} 
-comment "---- end of RS include %stream-io.r ----" 
-comment {
-#### RS include: %ajoin.r
-#### Title:   "Ajoin"
-#### Author:  "David Oliva (commercial)"
-----} 
-unless value? 'ajoin [
-    ajoin: func [
-        {Faster way how to create string from a block (in R3 it's native!)} 
-        block [block!]
-    ] [make string! reduce block]
-] 
-unless value? 'abin [
-    abin: func [
-        "faster binary creation of a block" 
-        block
-    ] [
-        head insert copy #{} reduce block
-    ]
-] 
-comment "---- end of RS include %ajoin.r ----" 
-comment {
-#### RS include: %binary-conversions.r
-#### Title:   "Binary-conversions"
-#### Author:  "David Oliva (commercial)"
-----} 
-either value? 'rebcode [
-    int-to-ui8: rebcode [val [integer!] /local tmp result] [
-        copy result #{00} -1 
-        and val 255 
-        poke result 1 val 
-        return result
-    ] 
-    int-to-ui16: rebcode [val [integer!] /local tmp result] [
-        copy result #{0000} -1 
-        set tmp 0 
-        set.i tmp val 
-        and tmp 255 
-        poke result 1 tmp 
-        set.i tmp val 
-        lsr tmp 8 
-        and tmp 255 
-        poke result 2 tmp 
-        return result
-    ] 
-    int-to-ui32: rebcode [val [integer!] /local tmp result] [
-        copy result #{00000000} -1 
-        set tmp 0 
-        set.i tmp val 
-        and tmp 255 
-        poke result 1 tmp 
-        set.i tmp val 
-        lsr tmp 8 
-        and tmp 255 
-        poke result 2 tmp 
-        set.i tmp val 
-        lsr tmp 16 
-        and tmp 255 
-        poke result 3 tmp 
-        set.i tmp val 
-        lsr tmp 24 
-        and tmp 255 
-        poke result 4 tmp 
-        return result
-    ] 
-    int-to-bits: func [i [number!] bits] [skip enbase/base head reverse int-to-ui32 i 2 32 - bits]
-] [
-    if error? try [
-        ui32-struct: make struct! [value [integer!]] none 
-        ui16-struct: make struct! [value [short]] none 
-        int-to-ui32: func [i] [ui32-struct/value: to integer! i copy third ui32-struct] 
-        int-to-ui16: func [i] [ui16-struct/value: to integer! i copy third ui16-struct] 
-        int-to-ui8: func [i] [ui16-struct/value: to integer! i copy/part third ui16-struct 1] 
-        int-to-bits: func [i [number!] bits] [skip enbase/base head reverse int-to-ui32 i 2 32 - bits]
-    ] [
-        int-to-ui32: func [i [number!]] [head reverse load rejoin ["#{" to-hex to integer! i "}"]] 
-        int-to-ui16: func [i [number!]] [head reverse load rejoin ["#{" skip mold to-hex to integer! i 5 "}"]] 
-        int-to-ui8: func [i [number!]] [load rejoin ["#{" skip mold to-hex to integer! i 7 "}"]] 
-        int-to-bits: func [i [number!] bits] [skip enbase/base load rejoin ["#{" to-hex to integer! i "}"] 2 32 - bits]
-    ]
-] 
-issue-to-binary: func [clr] [debase/base clr 16] 
-issue-to-decimal: func [i [issue!] /local e d] [
-    i: head reverse issue-to-binary i 
-    e: 0 d: 0 
-    forall i [
-        d: d + (i/1 * (2 ** e)) 
-        e: e + 8
-    ] 
-    d
-] 
-tuple-to-decimal: func [t [tuple!] /local e d] [
-    t: head reverse to-binary t 
-    e: 0 d: 0 
-    forall t [
-        d: d + (t/1 * (2 ** e)) 
-        e: e + 8
-    ] 
-    d
-] 
-to-ieee64f: func [
-    "Conversion of number to IEEE (Flash byte order)" 
-    value [number!] 
-    /local tmp
-] [
-    insert tail tmp: third make struct! [f [double]] reduce [value] copy/part tmp 4 
-    return remove/part tmp 4
-] 
-from-ieee64f: func [
-    "Conversion of number from IEEE (Flash byte order)" 
-    bin [binary!] 
-    /local tmp
-] [
-    change third tmp: make struct! [f [double]] [0] remove/part head insert tail bin: copy bin copy/part bin 4 4 
-    tmp/f
-] 
-from-ieee64: func [
-    "Conversion of number from IEEE" 
-    bin [binary!] 
-    /local tmp
-] [
-    change third tmp: make struct! [f [double]] [0] bin 
-    tmp/f
-] 
-comment "---- end of RS include %binary-conversions.r ----" 
-swf-parser: make stream-io [
-    tagId: tagLength: tagData: upd: none 
-    store?: false 
-    replaced-ids: make block! 200 
-    imported-names: make block! 200 
-    imported-labels: make block! 50 
-    imported-frames: 0 
-    wasDefineSceneAndFrameLabelDataTag: false 
-    export-dir: none 
-    write-tag: func [
-        "Writes the SWF-TAG to outBuffer" 
-        id [integer!] "Tag ID" 
-        data [binary!] "Tag data block" 
-        /local len
-    ] [
-        either any [
-            62 < len: length? data 
-            not none? find [2 20 34 36 37 48] id
-        ] [
-            writeUI16 (63 or (id * 64)) 
-            writeUI32 len 
-            writeBytes data
-        ] [
-            writeUI16 (len or (id * 64)) 
-            writeBytes data
-        ]
-    ] 
-    parse-swf-header: func [/local sig tmp] [
-        sig: readBytes 3 
-        case [
-            sig = #{465753} [
-                swf/header/version: readUI8 
-                readUI32
-            ] 
-            sig = #{435753} [
-                swf/header/version: readUI8 
-                if error? set/any 'err try [inBuffer: as-binary decompress skip (join inBuffer (readBytes 4)) 4] [
-                    clear tmp 
-                    recycle 
-                    print "Cannot decompress the data:(" 
-                    probe disarm err 
-                    halt
-                ]
-            ] 
-            true [
-                print "Illegal swf header!" 
-                halt
-            ]
-        ] 
-        swf/header/frame-size: readRect 
-        byteAlign 
-        swf/header/frame-rate: to integer! readBytes 2 
-        swf/header/frame-count: readUI16
-    ] 
-    open-swf-stream: func [swf-file [file! url! string!] "the SWF source file" /local f] [
-        if string? swf-file [swf-file: to-rebol-file swf-file] 
-        unless swf-file [
-            swf-file: either empty? swf-file: ask "SWF file:" [%new.swf] [
-                either "http://" = copy/part swf-file 7 [to-url swf-file] [to-file swf-file]
-            ]
-        ] 
-        unless exists? swf-file [
-            f: join swf-file ".swf" 
-            either exists? f [swf-file: f] [print ["Cannot found the file" swf-file "!"]]
-        ] 
-        swf: make object! [
-            file: swf-file 
-            header: make object! [version: frame-size: frame-rate: frame-count: none] 
-            data: copy []
-        ] 
-        read/binary swf-file
-    ] 
-    foreach-swf-tag: func [action /local tagAndLength] [
-        bind action 'tagAndLength 
-        while [not tail? inBuffer] [
-            tagAndLength: readUI16 
-            tagId: to integer! ((65472 and tagAndLength) / (2 ** 6)) 
-            tagLength: tagAndLength and 63 
-            if tagLength = 63 [tagLength: readUI32] 
-            tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-            do action
-        ]
-    ] 
-    set 'extract-swf-tags func [
-        "Returns block of specified SWF tags" 
-        swf-file [file! url! string!] "the SWF source file" 
-        tagids [block!] "Tag IDs to extract" 
-        /local result
-    ] [
-        result: copy [] 
-        setStreamBuffer swf-stream: open-swf-stream swf-file 
-        if error? set/any 'err try [
-            parse-swf-header 
-            foreach-swf-tag [
-                if find tagids tagId [
-                    repend result [tagId tagData]
-                ]
-            ]
-        ] [
-            throw err
-        ] 
-        result
-    ] 
-    readSWFTags: func [swfTagsStream /local storeBuffer results onlyTagIds] [
-        storeBuffer: reduce [inBuffer availableBits bitBuffer] 
-        setStreamBuffer swfTagsStream 
-        results: copy [] 
-        onlyTagIds: swf-tag-parser/onlyTagIds 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel + 1 
-        foreach-swf-tag [
-            tagId 
-            if any [
-                none? onlyTagIds 
-                find onlyTagIds tagId
-            ] [
-                insert/only tail results reduce [
-                    tagId 
-                    parse-swf-tag tagId tagData
-                ]
-            ]
-        ] 
-        inBuffer: storeBuffer/1 
-        availableBits: storeBuffer/2 
-        bitBuffer: storeBuffer/3 
-        clear storeBuffer 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel - 1 
-        results
-    ] 
-    importSWFTags: func [swfTagsStream /local storeBuffer results importedResult] [
-        importedResult: make binary! 20000 
-        storeBuffer: reduce [inBuffer availableBits bitBuffer] 
-        setStreamBuffer swfTagsStream 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel + 1 
-        while [not tail? inBuffer] [
-            tagStart: index? inBuffer 
-            tagAndLength: readUI16 
-            tagId: to integer! ((65472 and tagAndLength) / (2 ** 6)) 
-            tagLength: tagAndLength and 63 
-            if tagLength = 63 [tagLength: readUI32] 
-            tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-            insert tail importedResult import-swf-tag tagId tagData
-        ] 
-        inBuffer: storeBuffer/1 
-        availableBits: storeBuffer/2 
-        bitBuffer: storeBuffer/3 
-        clear storeBuffer 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel - 1 
-        importedResult
-    ] 
-    rescaleSWFTags: func [swfTagsStream /local storeBuffer results rescaledResult] [
-        rescaledResult: make binary! 20000 
-        storeBuffer: reduce [inBuffer availableBits bitBuffer head swf-tag-parser/outBuffer] 
-        setStreamBuffer swfTagsStream 
-        swf-tag-parser/outSetStreamBuffer copy #{} 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel + 1 
-        while [not tail? inBuffer] [
-            tagStart: index? inBuffer 
-            tagAndLength: readUI16 
-            tagId: to integer! ((65472 and tagAndLength) / (2 ** 6)) 
-            tagLength: tagAndLength and 63 
-            if tagLength = 63 [tagLength: readUI32] 
-            tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-            insert tail rescaledResult rescale-swf-tag tagId tagData
-        ] 
-        inBuffer: storeBuffer/1 
-        availableBits: storeBuffer/2 
-        bitBuffer: storeBuffer/3 
-        swf-tag-parser/outBuffer: tail storeBuffer/4 
-        clear storeBuffer 
-        swf-tag-parser/spriteLevel: swf-tag-parser/spriteLevel - 1 
-        rescaledResult
-    ] 
-    set 'exam-swf func [
-        "Examines SWF file structure" [catch] 
-        /file swf-file [file! url! string!] "the SWF source file" 
-        /quiet "No visible output" 
-        /into out-file [file!] 
-        /store {If you want to store parsed tags in the swf/data block} 
-        /only onlyTagIds [block!] 
-        /parseActions pActions [block! hash!] 
-        /local err sysprint sysprin action
-    ] [
-        if all [file string? swf-file] [swf-file: to-rebol-file swf-file] 
-        store?: store 
-        setStreamBuffer open-swf-stream swf-file 
-        if error? set/any 'err try [
-            prin "Searching the binary file... " 
-            parse-swf-header 
-            print "-------------------------" 
-            probe swf/header 
-            swf-tag-parser/verbal?: not quiet 
-            swf-tag-parser/output-file: either into [out-file: open/new/write out-file] [none] 
-            swf-tag-parser/parseActions: either parseActions [pActions] [swfTagParseActions] 
-            swf-tag-parser/onlyTagIds: onlyTagIds 
-            swf-tag-parser/swfVersion: swf/header/version 
-            foreach-swf-tag [
-                if any [
-                    none? onlyTagIds 
-                    find onlyTagIds tagId
-                ] [
-                    if store [repend/only swf/data [tagId tagData]] 
-                    parse-swf-tag tagId tagData
-                ]
-            ]
-        ] [
-            clear head inBuffer 
-            error? try [close swf-tag-parser/output-file] 
-            recycle 
-            throw err
-        ] 
-        clear head inBuffer inBuffer: none 
-        recycle 
-        error? try [close out-file] 
-        swf
-    ] 
-    set 'import-swf func [
-        {Reads SWF file, changes all IDs in the file not to conflict with given existing IDs and returns the new binary (without header)} 
-        [catch] swf-file [file! url! string!] "the SWF source file" 
-        used-tag-ids [block!] 
-        init-depth [integer!] 
-        /except except-tag-ids [block!] 
-        /local importedSWF tagStart tagAndLength tagLength importedTags importedDict importedResult importedLabels importedFrames
-    ] [
-        clear replaced-ids 
-        clear imported-names 
-        clear imported-labels 
-        importedFrames: 0 
-        importedTags: make block! 2000 
-        importedDict: make binary! 1000000 
-        importedCtrl: make binary! 200000 
-        importedResult: copy [] 
-        tagsStartIndex: 0 
-        if all [string? swf-file] [swf-file: to-rebol-file swf-file] 
-        setStreamBuffer open-swf-stream swf-file 
-        if error? set/any 'err try [
-            parse-swf-header 
-            swf-tag-parser/parseActions: swfTagImportActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            swf-tag-parser/used-ids: used-tag-ids 
-            swf-tag-parser/init-depth: init-depth 
-            tagsStartIndex: index? inBuffer 
-            while [not tail? inBuffer] [
-                tagStart: index? inBuffer 
-                tagAndLength: readUI16 
-                tagId: to integer! ((65472 and tagAndLength) / 64) 
-                tagLength: tagAndLength and 63 
-                if tagLength = 63 [tagLength: readUI32] 
-                tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-                case [
-                    find [65 69 77 9] tagId [] 
-                    find [0 1 4 5 12 15 18 19 26 28 43 45 59 70 76 82 89] tagId [
-                        insert tail importedCtrl import-swf-tag tagId tagData 
-                        if tagId = 1 [
-                            repend importedResult [copy importedDict copy importedCtrl] 
-                            clear importedCtrl 
-                            clear importedDict 
-                            importedFrames: importedFrames + 1
-                        ]
-                    ] 
-                    tagId = 86 [
-                        unless wasDefineSceneAndFrameLabelDataTag [
-                            insert tail importedDict import-swf-tag tagId tagData 
-                            wasDefineSceneAndFrameLabelDataTag: true
-                        ]
-                    ] 
-                    true [
-                        insert tail importedDict import-swf-tag tagId tagData
-                    ]
-                ]
-            ] 
-            repend importedResult [copy importedDict copy importedCtrl] 
-            clear importedCtrl 
-            clear importedDict
-        ] [
-            clear importedCtrl 
-            clear importedDict 
-            clear importedResult 
-            clear head inBuffer 
-            recycle 
-            throw err
-        ] 
-        imported-frames: importedFrames 
-        recycle 
-        print ["FRAMES:" imported-frames] 
-        reduce [
-            importedResult 
-            swf-tag-parser/last-depth 
-            imported-names 
-            imported-labels 
-            imported-frames
-        ]
-    ] 
-    set 'remove-blurs-from-swf func [
-        {Reads SWF file, removes all blur effects and returns the new binary (without header)} 
-        [catch] swf-file [file! url! string!] "the SWF source file" 
-        /into out-file [file! url!] 
-        /local importedSWF tagStart tagAndLength tagLength importedDict importedResult importedLabels outBuffer
-    ] [
-        clear replaced-ids 
-        clear imported-names 
-        clear imported-labels 
-        importedDict: make binary! 1000000 
-        importedCtrl: make binary! 200000 
-        importedResult: copy #{} 
-        tagsStartIndex: 0 
-        if all [string? swf-file] [swf-file: to-rebol-file swf-file] 
-        setStreamBuffer open-swf-stream swf-file 
-        if error? set/any 'err try [
-            parse-swf-header 
-            swf-tag-parser/parseActions: swfTagImportActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            swf-tag-parser/used-ids: copy [] 
-            swf-tag-parser/init-depth: 0 
-            tagsStartIndex: index? inBuffer 
-            while [not tail? inBuffer] [
-                tagStart: index? inBuffer 
-                tagAndLength: readUI16 
-                tagId: to integer! ((65472 and tagAndLength) / 64) 
-                tagLength: tagAndLength and 63 
-                if tagLength = 63 [tagLength: readUI32] 
-                tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-                case [
-                    find [0 1 4 5 12 15 18 19 26 28 43 45 59 70 76 82 89] tagId [
-                        insert tail importedCtrl import-swf-tag tagId tagData 
-                        if tagId = 1 [
-                            insert tail importedResult importedDict 
-                            insert tail importedResult importedCtrl 
-                            clear importedCtrl 
-                            clear importedDict
-                        ]
-                    ] 
-                    tagId = 86 [
-                        unless wasDefineSceneAndFrameLabelDataTag [
-                            insert tail importedDict import-swf-tag tagId tagData 
-                            wasDefineSceneAndFrameLabelDataTag: true
-                        ]
-                    ] 
-                    true [
-                        insert tail importedDict import-swf-tag tagId tagData
-                    ]
-                ]
-            ] 
-            insert tail importedResult importedDict 
-            insert tail importedResult importedCtrl 
-            clear importedCtrl 
-            clear importedDict
-        ] [
-            clear importedCtrl 
-            clear importedDict 
-            clear importedResult 
-            clear head inBuffer 
-            recycle 
-            throw err
-        ] 
-        outBuffer: create-swf/rate/version/compressed 
-        as-pair (SWF/HEADER/FRAME-SIZE/2 / 20) (SWF/HEADER/FRAME-SIZE/4 / 20) 
-        importedResult 
-        swf/header/frame-rate 
-        swf/header/version 
-        true 
-        if into [write/binary out-file outBuffer] 
-        recycle 
-        outBuffer
-    ] 
-    set 'swf-to-rswf func [
-        "Converts SWF into RSWF" [catch] 
-        swf-file [file! url! string!] "the SWF source file" 
-        /into out-file [file!] 
-        /local err sysprint sysprin action names-to-ids swfDir swfName
-    ] [
-        if string? swf-file [swf-file: to-rebol-file swf-file] 
-        swfName: copy find/last/tail swf-file #"/" 
-        unless swfDir: export-dir [
-            swfDir: either url? swf-file [
-                what-dir
-            ] [first split-path swf-file]
-        ] 
-        swfDir: rejoin [swfDir swfName %_export/] 
-        if not exists? swfDir [make-dir/deep swfDir] 
-        setStreamBuffer open-swf-stream swf-file 
-        if error? set/any 'err try [
-            prin "Searching the binary file... " 
-            parse-swf-header 
-            print "-------------------------" 
-            probe swf/header 
-            print stats 
-            swf-tag-parser/names-to-ids: copy [] 
-            swf-tag-parser/JPEGTables: none 
-            swf-tag-parser/swfDir: swfDir 
-            swf-tag-parser/swfName: swfName 
-            swf-tag-parser/output-file: either into [out-file: open/new/write out-file] [none] 
-            swf-tag-parser/parseActions: swfTagToRSWFActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            foreach-swf-tag [
-                swf-tag-to-rswf tagId tagData
-            ]
-        ] [
-            clear head inBuffer 
-            error? try [close swf-tag-parser/output-file] 
-            recycle 
-            throw err
-        ] 
-        clear head inBuffer inBuffer: none 
-        recycle 
-        error? try [close out-file] 
-        swf
-    ] 
-    set 'swf-optimize func [
-        "Optimize SWF file" 
-        swf-file [file! url! string!] "the SWF source file" 
-        /into out-file [file!] 
-        /local origBytes noBBids err sysprint sysprin action names-to-ids swfDir swfName result swfTags ext bmp crops w h x y md5 noCrops bin1 bin2 shapeStyles
-    ] [
-        if string? swf-file [swf-file: to-rebol-file swf-file] 
-        swfName: copy find/last/tail swf-file #"/" 
-        unless swfDir: export-dir [
-            swfDir: either url? swf-file [
-                what-dir
-            ] [first split-path swf-file]
-        ] 
-        swfDir: rejoin [swfDir swfName %_export/] 
-        if not exists? swfDir [make-dir/deep swfDir] 
-        setStreamBuffer open-swf-stream swf-file 
-        clearOutBuffer 
-        frames: 0 
-        swfTags: copy [] 
-        swfBitmaps: copy [] 
-        swfBitmapFills: copy [] 
-        noCrops: copy [] 
-        shapeStyles: copy [] 
-        noBBids: copy [] 
-        origBytes: 0 
-        if error? set/any 'err try [
-            prin "Searching the binary file... " 
-            parse-swf-header 
-            origBytes: length? inBuffer 
-            print "-------------------------" 
-            probe swf/header 
-            print stats 
-            swf-tag-parser/names-to-ids: copy [] 
-            swf-tag-parser/JPEGTables: none 
-            swf-tag-parser/swfDir: swfDir 
-            swf-tag-parser/swfName: swfName 
-            swf-tag-parser/parseActions: swfTagOptimizeActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            foreach-swf-tag [
-                repend swfTags [tagId tagData] 
-                switch tagId [
-                    6 20 21 36 [
-                        probe md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                        result: swf-tag-optimize tagId tagData 
-                        swf-tag-parser/export-image-tag tagId md5 result 
-                        append result md5 
-                        change/only back tail swfTags copy/deep result 
-                        append swfBitmaps result/1 
-                        repend/only swfBitmaps head change result tagId
-                    ] 
-                    35 [
-                        probe md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                        result: swf-tag-optimize tagId tagData 
-                        swf-tag-parser/export-image-tag tagId md5 result 
-                        swf-tag-parser/export-image-tag/alpha tagId md5 result 
-                        append result md5 
-                        change/only back tail swfTags copy/deep result 
-                        append swfBitmaps result/1 
-                        repend/only swfBitmaps head change result tagId
-                    ] 
-                    2 22 32 67 83 [
-                        if result: swf-tag-optimize tagId tagData [
-                            append swfBitmapFills result/1 
-                            append append shapeStyles result/2 result/3
-                        ]
-                    ] 1 [frames: frames + 1] 
-                    56 [
-                        print ["EXPORT"] 
-                        foreach [id name] swf-tag-optimize tagId tagData [
-                            if find/part name #{6E6F4242} 4 [
-                                append noBBids id
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ] [
-            clear head inBuffer 
-            clear head swfTags 
-            error? try [close swf-tag-parser/output-file] 
-            recycle 
-            throw err
-        ] 
-        print ["BITMAPS:" (length? swfBitmaps) / 2] 
-        print ["BITMAP FILLS" mold swfBitmapFills] 
-        crops: copy [] 
-        mat: func [x y a b c d tx ty /local nx ny] [
-            nx: (x * a) + (y * c) + tx 
-            ny: (x * b) + (y * d) + ty 
-            reduce [nx ny]
-        ] 
-        xxx: copy [] 
-        foreach [id minx miny maxx maxy sx sy rx ry tx ty] swfBitmapFills [
-            unless find noCrops id [
-                unless rx [rx: 0] 
-                unless ry [ry: 0] 
-                minx: minx / 20 
-                miny: miny / 20 
-                maxx: maxx / 20 
-                maxy: maxy / 20 
-                a: sx / 20 
-                c: ry / 20 
-                b: rx / 20 
-                d: sy / 20 
-                tx: tx / 20 
-                ty: ty / 20 
-                tmp: (a * d) - (b * c) 
-                ai: d / tmp 
-                bi: - b / tmp 
-                ci: - c / tmp 
-                di: a / tmp 
-                txi: ((c * ty) - (d * tx)) / tmp 
-                tyi: - ((a * ty) - (b * tx)) / tmp 
-                xA: (minx * ai) + (miny * ci) + txi 
-                yA: (minx * bi) + (miny * di) + tyi 
-                xB: (maxx * ai) + (miny * ci) + txi 
-                yB: (maxx * bi) + (miny * di) + tyi 
-                xC: (maxx * ai) + (maxy * ci) + txi 
-                yC: (maxx * bi) + (maxy * di) + tyi 
-                xD: (minx * ai) + (maxy * ci) + txi 
-                yD: (minx * bi) + (maxy * di) + tyi 
-                nminx: to-integer min xD min xC min xA xB 
-                nmaxx: to-integer max xD max xC max xA xB 
-                nminy: to-integer min yD min yC min yA yB 
-                nmaxy: to-integer max yD max yC max yA yB 
-                x: xc: round/floor nminx 
-                y: yc: round/floor nminy 
-                w: round/ceiling (nmaxx - x) 
-                h: round/ceiling (nmaxy - y) 
-                if bmp: select swfBitmaps id [
-                    imgsz: swf-tag-parser/get-image-size-from-tagData bmp 
-                    if xc < 0 [xc: imgsz/1 + (xc // imgsz/1)] 
-                    if yc < 0 [yc: imgsz/2 + (yc // imgsz/2)] 
-                    if xc > imgsz/1 [xc: xc // imgsz/1] 
-                    if yc > imgsz/2 [yc: yc // imgsz/2] 
-                    if xc > 0 [x: x - 1 xc: xc - 1 w: w + 1] 
-                    if yc > 0 [y: y - 1 yc: yc - 1 h: h + 1] 
-                    if (xc + w) < imgsz/1 [w: w + 1] 
-                    if (yc + h) < imgsz/2 [h: h + 1]
-                ] 
-                print ["crop:" x y w h tab "===" tab nminx nminy nmaxx nmaxy] 
-                either tmp: select xxx id [
-                    repend tmp [xc yc (xc + w) (yc + h) x y]
-                ] [
-                    append xxx id 
-                    repend/only xxx [xc yc xc + w yc + h x y]
-                ] 
-                either none? tmp: select crops id [
-                    append crops id 
-                    repend/only crops [xc yc xc + w yc + h x y]
-                ] [
-                    change tmp reduce [
-                        min tmp/1 xc 
-                        min tmp/2 yc 
-                        max tmp/3 (xc + w) 
-                        max tmp/4 (yc + h) 
-                        min tmp/5 x 
-                        min tmp/6 y
-                    ]
-                ] 
-                if error? try [md5: last select swfBitmaps id] [md5: none] 
-                print ["BMP" id md5 w h as-pair x y as-pair x + w y + h]
-            ]
-        ] 
-        print "============CROP==============" 
-        probe xxx 
-        save %crops.rb xxx 
-        comment {^-^-
-^-^-^-^-
-^-^-foreach [id szs] xxx [
-^-^-^-crops: copy []
-
-^-^-^-foreach [xc1 yc1 xc2 yc2 x y] szs [
-^-^-^-^-joined?: false
-^-^-^-^-
-^-^-^-^-while [not tail? crops] [
-^-^-^-^-^-;probe crops
-^-^-^-^-^-set [cx1 cy1 cx2 cy2 cx cy] crops
-^-^-^-^-^-print ["?xc" xc1 yc1 xc2 yc2 x y]
-^-^-^-^-^-print ["?cx" cx1 cy1 cx2 cy2 cx cy]
-^-^-^-^-^-print ["cx1 <= xc1" cx1 <= xc1]
-^-^-^-^-^-print ["cx2 <= xc2" cx2 <= xc2]
-^-^-^-^-^-print ["cy1 <= yc1" cy1 <= yc1]
-^-^-^-^-^-print ["cy2 <= yc2" cy2 <= yc2]
-^-^-^-^-^-if any [
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-cx1 <= xc1
-^-^-^-^-^-^-^-cx2 >= xc1
-^-^-^-^-^-^-^-cy1 <= yc1
-^-^-^-^-^-^-^-cy2 >= yc1
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-cx1 <= xc2
-^-^-^-^-^-^-^-cx2 >= xc2
-^-^-^-^-^-^-^-cy1 <= yc1
-^-^-^-^-^-^-^-cy2 >= yc1
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-cx1 <= xc1
-^-^-^-^-^-^-^-cx2 >= xc1
-^-^-^-^-^-^-^-cy1 <= yc2
-^-^-^-^-^-^-^-cy2 >= yc2
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-cx1 <= xc2
-^-^-^-^-^-^-^-cx2 >= xc2
-^-^-^-^-^-^-^-cy1 <= yc2
-^-^-^-^-^-^-^-cy2 >= yc2
-^-^-^-^-^-^-]
-^-^-^-^-^-^-
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-xc1 <= cx1
-^-^-^-^-^-^-^-xc2 >= cx1
-^-^-^-^-^-^-^-yc1 <= cy1
-^-^-^-^-^-^-^-yc2 >= cy1
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-xc1 <= cx1
-^-^-^-^-^-^-^-xc2 >= cx1
-^-^-^-^-^-^-^-yc1 <= cy2
-^-^-^-^-^-^-^-yc2 >= cy2
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-xc1 <= cx2
-^-^-^-^-^-^-^-xc2 >= cx2
-^-^-^-^-^-^-^-yc1 <= cy1
-^-^-^-^-^-^-^-yc2 >= cy1
-^-^-^-^-^-^-]
-^-^-^-^-^-^-all [
-^-^-^-^-^-^-^-xc1 <= cx2
-^-^-^-^-^-^-^-xc2 >= cx2
-^-^-^-^-^-^-^-yc1 <= cy2
-^-^-^-^-^-^-^-yc2 >= cy2
-^-^-^-^-^-^-]
-^-^-^-^-^-] [
-^-^-^-^-^-^-;ask ""
-^-^-^-^-^-^-change/part crops reduce [
-^-^-^-^-^-^-^-min cx1 xc1
-^-^-^-^-^-^-^-min cy1 yc1
-^-^-^-^-^-^-^-max cx2 xc2
-^-^-^-^-^-^-^-max cy2 yc2
-^-^-^-^-^-^-^-min cx  x
-^-^-^-^-^-^-^-min cy  y
-^-^-^-^-^-^-] 6
-^-^-^-^-^-^-joined?: true
-^-^-^-^-^-^-break
-^-^-^-^-^-] 
-^-^-^-^-^-crops: skip crops 6
-^-^-^-^-]
-^-^-^-^-crops: head crops
-^-^-^-^-unless joined? [
-^-^-^-^-^-repend crops [xc1 yc1 xc2 yc2 x y]
-^-^-^-^-]
-^-^-^-]
-^-^-^-probe crops
-^-^-^-clear szs
-^-^-^-insert szs crops
-^-^-]
-^-^-probe xxx
-^-^-^-^-
-^-^-cache-bmp-sizes: copy []
-^-^-foreach [id szs] xxx [
-^-^-^-if bmp: select swfBitmaps id [
-^-^-^-^-print ["crop bitmap type:" bmp/1 last bmp]
-^-^-^-^-ext: either find [20 36] bmp/1 [%.png][%.jpg]
-^-^-^-^-size: swf-tag-parser/get-image-size-from-tagData bmp ;get-image-size rejoin [swfDir %tag35  %_ last bmp %.jpg]
-^-^-^-^-
-^-^-^-^-;test range for all szs
-^-^-^-^-in-range?: true
-^-^-^-^-foreach [xc1 yc1 xc2 yc2 x y] szs [
-^-^-^-^-^-if any [
-^-^-^-^-^-^-xc1 < 0
-^-^-^-^-^-^-yc1 < 0
-^-^-^-^-^-^-xc2 > size/x
-^-^-^-^-^-^-yc2 > size/y
-^-^-^-^-^-][
-^-^-^-^-^-^-in-range?: false
-^-^-^-^-^-^-append noCrops id
-^-^-^-^-^-^-print ["!! Crop out of bounds!" xc1 yc1 xc2 yc2 "with size:" size]
-^-^-^-^-^-^-clear szs
-^-^-^-^-^-^-break
-^-^-^-^-^-]
-^-^-^-^-]
-^-^-^-^-if in-range? [
-^-^-^-^-^-repend cache-bmp-sizes [id size] 
-^-^-^-^-^-probe szs
-^-^-^-^-^-foreach [xc1 yc1 xc2 yc2 x y] szs [
-^-^-^-^-^-^-switch bmp/1 [
-^-^-^-^-^-^-^-35 [
-^-^-^-^-^-^-^-^-
-^-^-^-^-^-^-^-^-unless crop-images
-^-^-^-^-^-^-^-^-^-reduce [
-^-^-^-^-^-^-^-^-^-^-rejoin [swfDir %tag35  %_ last bmp %.jpg]
-^-^-^-^-^-^-^-^-^-^-rejoin [swfDir %tag35  %_ last bmp %.png]
-^-^-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-^-^-xc1
-^-^-^-^-^-^-^-^-^-yc1
-^-^-^-^-^-^-^-^-^-xc2 - xc1
-^-^-^-^-^-^-^-^-^-yc2 - yc1
-^-^-^-^-^-^-^-^-[
-^-^-^-^-^-^-^-^-^-print ["!!!" id]
-^-^-^-^-^-^-^-^-^-append noCrops id
-^-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-^-^-
-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-6 20 21 36 [
-^-^-^-^-^-^-^-^-unless crop-images
-^-^-^-^-^-^-^-^-^-reduce [
-^-^-^-^-^-^-^-^-^-^-rejoin [swfDir %tag bmp/1  %_ last bmp ext]
-^-^-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-^-^-xc1
-^-^-^-^-^-^-^-^-^-yc1
-^-^-^-^-^-^-^-^-^-xc2 - xc1
-^-^-^-^-^-^-^-^-^-yc2 - yc1
-^-^-^-^-^-^-^-^-[
-^-^-^-^-^-^-^-^-^-print ["!!!" id]
-^-^-^-^-^-^-^-^-^-append noCrops id
-^-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-]
-^-^-^-^-^-]
-^-^-^-^-]
-^-^-^-^-
-^-^-^-]
-^-^-]^-
-^-^-probe xxx
-^-^-ask "croping done"
-^-^-} 
-        foreach [id sizes] crops [
-            if bmp: select swfBitmaps id [
-                print ["crop bitmap type:" bmp/1 last bmp] 
-                probe sizes 
-                ext: either find [20 36] bmp/1 [%.png] [%.jpg] 
-                switch bmp/1 [
-                    35 [
-                        unless crop-images 
-                        reduce [
-                            rejoin [swfDir %tag35 %_ last bmp %.jpg] 
-                            rejoin [swfDir %tag35 %_ last bmp %.png]
-                        ] 
-                        sizes/1 
-                        sizes/2 
-                        sizes/3 - sizes/1 
-                        sizes/4 - sizes/2 
-                        [
-                            print ["!!!" id] 
-                            append noCrops id
-                        ]
-                    ] 
-                    6 20 21 36 [
-                        unless crop-images 
-                        reduce [
-                            rejoin [swfDir %tag bmp/1 %_ last bmp ext]
-                        ] 
-                        sizes/1 
-                        sizes/2 
-                        sizes/3 - sizes/1 
-                        sizes/4 - sizes/2 
-                        [
-                            print ["!!!" id] 
-                            append noCrops id
-                        ]
-                    ]
-                ]
-            ]
-        ] 
-        print "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" 
-        probe noCrops: unique noCrops 
-        probe crops 
-        foreach id sort/reverse noCrops [
-            print ["noCrop:" id] 
-            if tmp: find crops id [
-                print ["noCrop:" mold tmp/2] 
-                remove/part tmp 2
-            ]
-        ] 
-        probe crops 
-        clear head inBuffer inBuffer: none 
-        swf-tag-parser/parseActions: swfTagOptimizeActions2 
-        swf-tag-parser/use-BB-optimization?: true 
-        swf-tag-parser/data: context compose/only [
-            crops: (crops) 
-            shapeStyles: (shapeStyles) 
-            noBBids: (noBBids) 
-            shapeReduction: 0
-        ] 
-        print ["noBBids:" mold noBBids] 
-        rob-parts: [
-            "4C1447FA88E3FF7948EE17E488504B15" ["hlava_zboku1" 613x52] 
-            "833CDDDC6E0E92A4CEB86DE946CE6D9C" ["hlava_zboku1" 613x52] 
-            "44A588C3DFAE46757ABB53484BBEF4CE" ["hlava_zepredu" 584x80] 
-            "83CAA93D0452AA443BA2C49F3C985DE0" ["hlava_zepredu" 584x80] 
-            "CA72BBAAA141E4E8FBADBC77BC9F5BAF" ["hlava_zezadu" 597x82] 
-            "C9DD1E9CD54DDF0703C1F6C90172496E" ["hlava_zezadu" 597x82] 
-            "C8A1BBD44C99562860B7F9B373AE4361" ["rob_clanek1" 412x446] 
-            "96304CC31FFD00FC38CB79E329785585" ["rob_clanek1" 412x446] 
-            "4E979CAAC3A1286F8863E3A731ECBCFE" ["rob_clanek2" 416x462] 
-            "18E09D32E378101A68FA52B18E1B5078" ["rob_clanek2" 416x462] 
-            "3F789582ED9EB4E0132F0B2A2B3218E2" ["rob_clanek3" 414x483] 
-            "D347F7A1183289093C48AA56FFECE305" ["rob_clanek3" 414x483] 
-            "5666B12A1AD994D53422AD7FBF6FD210" ["rob_clanek4" 414x520] 
-            "779DE1ADBC02C33F135CFCA332E9B38A" ["rob_clanek4" 414x520] 
-            "7C185BFEF392BBFEE91D8BA958D94E87" ["rob_nohy" 410x516] 
-            "8568E78B9DF61D95096CD66DCBC0D5E8" ["rob_nohy" 410x516] 
-            "559FF962C35C61AE3098544A6ACCBFB3" ["rob_ruka" 176x445] 
-            "C869CF3DAE5FA462133B4D9A7F8DE032" ["rob_ruka" 176x445]
-        ] 
-        rob-parts: [] 
-        foreach [Id tagData] swfTags [
-            tagId: id 
-            switch/default tagId [
-                21 [
-                    either tmp: select crops tagData/1 [
-                        write-tag 21 abin [
-                            int-to-ui16 tagData/1 
-                            read/binary rejoin [swfDir %tag21_ tagData/3 %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2) %.jpg]
-                        ]
-                    ] [
-                        write-tag 21 abin [
-                            int-to-ui16 tagData/1 
-                            tagData/2
-                        ]
-                    ]
-                ] 
-                35 [
-                    either tmp: select crops tagData/1 [
-                        either tmp2: select rob-parts last tagData [
-                            either find swf-file %rob-include [
-                                print ["Adding ExportAssets for" tmp2 as-pair tmp/1 tmp/2 mold tmp] 
-                                file: rejoin [swfDir %tag35_ last tagData %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2)] 
-                                bin1: read/binary join file %.jpg 
-                                bin2: load join file %.png 
-                                write-tag 35 abin [
-                                    int-to-ui16 tagData/1 
-                                    int-to-ui32 length? bin1 
-                                    bin1 
-                                    head head remove/part tail compress bin2/alpha -4
-                                ] 
-                                write-tag 56 abin [
-                                    #{0100} 
-                                    int-to-ui16 tagData/1 
-                                    tmp2/1 
-                                    #{00}
-                                ]
-                            ] [
-                                print ["Adding ImportAssets for" tmp2 "as" tagData/1 as-pair tmp/1 tmp/2] 
-                                change/part skip tmp 4 reduce [tmp2/2/x tmp2/2/y] 2 
-                                write-tag 71 abin [
-                                    as-binary "00/11111100.011" 
-                                    #{0001000100} 
-                                    int-to-ui16 tagData/1 
-                                    tmp2/1 
-                                    #{00}
-                                ]
-                            ]
-                        ] [
-                            file: rejoin [swfDir %tag35_ last tagData %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2)] 
-                            bin1: read/binary join file %.jpg 
-                            bin2: load join file %.png 
-                            write-tag 35 abin [
-                                int-to-ui16 tagData/1 
-                                int-to-ui32 length? bin1 
-                                bin1 
-                                head head remove/part tail compress bin2/alpha -4
-                            ]
-                        ]
-                    ] [
-                        write-tag 35 abin [
-                            int-to-ui16 tagData/1 
-                            int-to-ui32 length? tagData/2 
-                            tagData/2 
-                            tagData/3
-                        ]
-                    ]
-                ] 
-                36 [
-                    either tmp: select crops tagData/1 [
-                        write-tag 36 abin [
-                            int-to-ui16 tagData/1 
-                            ImageCore/ARGB2BLL ImageCore/load rejoin [swfDir %tag36_ last tagData %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2) %.png]
-                        ]
-                    ] [
-                        write-tag 36 abin [
-                            int-to-ui16 tagData/1 
-                            ImageCore/ARGB2BLL ImageCore/load rejoin [swfDir %tag36_ last tagData %.png]
-                        ]
-                    ]
-                ] 
-                20 [
-                    either tmp: select crops tagData/1 [
-                        write-tag 20 abin [
-                            int-to-ui16 tagData/1 
-                            ImageCore/ARGB2BLL ImageCore/load rejoin [swfDir %tag20_ last tagData %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2) %.png]
-                        ]
-                    ] [
-                        write-tag 20 abin [
-                            int-to-ui16 tagData/1 
-                            ImageCore/ARGB2BLL ImageCore/load rejoin [swfDir %tag20_ last tagData %.png]
-                        ]
-                    ]
-                ] 
-                6 [
-                    either tmp: select crops tagData/1 [
-                        write-tag 6 abin [
-                            int-to-ui16 tagData/1 
-                            read/binary rejoin [swfDir %tag6_ last tagData %_crop_ tmp/1 %x tmp/2 %_ (tmp/3 - tmp/1) %x (tmp/4 - tmp/2) %.jpg]
-                        ]
-                    ] [
-                        write-tag 6 abin [
-                            int-to-ui16 tagData/1 
-                            read/binary rejoin [swfDir %tag6_ last tagData %.jpg]
-                        ]
-                    ]
-                ] 
-                2 22 32 67 83 [
-                    if result: swf-tag-optimize tagId tagData [
-                        write-tag tagId result
-                    ]
-                ]
-            ] [
-                write-tag tagId tagData
-            ]
-        ] 
-        print length? outBuffer: head outBuffer 
-        rswf/frames: frames 
-        print ["TOTAL REDUCTION:" origBytes - (length? head outBuffer) "bytes"] 
-        outBuffer: create-swf/rate/version/compressed 
-        as-pair (SWF/HEADER/FRAME-SIZE/2 / 20) (SWF/HEADER/FRAME-SIZE/4 / 20) 
-        outBuffer 
-        swf/header/frame-rate 
-        swf/header/version 
-        true 
-        if into [write/binary out-file outBuffer] 
-        recycle 
-        print ["SHAPE REDUCTION:" negate swf-tag-parser/data/shapeReduction "bytes"] 
-        outBuffer
-    ] 
-    set 'rescale-swf func [
-        "Rescale SWF file" [catch] 
-        swf-file [file! url! string!] "the SWF source file" 
-        /into out-file [file!] 
-        /compact "Uses bitmap packing" 
-        /local err sysprint sysprin action swfDir swfName rescaleResult frames px py swfTags tmp images-to-compact
-    ] [
-        frames: 0 
-        rescaleResult: make binary! 20000 
-        tagsStartIndex: 0 
-        if all [string? swf-file] [swf-file: to-rebol-file swf-file] 
-        swfName: copy find/last/tail swf-file #"/" 
-        unless swfDir: export-dir [
-            swfDir: either url? swf-file [
-                what-dir
-            ] [first split-path swf-file]
-        ] 
-        probe swfDir: rejoin [swfDir swfName %_export/] 
-        px: to-integer (swf-tag-parser/rswf-rescale-index-x * 100) 
-        py: to-integer (swf-tag-parser/rswf-rescale-index-y * 100) 
-        unless exists? scDir: rejoin [swfDir %_sc either px = py [px] [rejoin [px "x" py]] #"/"] [
-            make-dir/deep scDir
-        ] 
-        setStreamBuffer open-swf-stream probe swf-file 
-        if error? set/any 'err try [
-            parse-swf-header 
-            swf-tag-parser/parseActions: swfTagRescaleActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            swf-tag-parser/swfDir: swfDir 
-            swf-tag-parser/swfName: swfName 
-            tagsStartIndex: index? inBuffer 
-            either compact [
-                swfTags: copy [] 
-                images-to-compact: context [
-                    jpeg3: copy [] 
-                    jpeg2: copy []
-                ] 
-                swf-tag-parser/parseActions: swfTagParseImages 
-                foreach-swf-tag [
-                    repend swfTags [tagId tagData] 
-                    switch tagId [
-                        6 21 [
-                            md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                            with swf-tag-parser [
-                                setStreamBuffer tagData 
-                                clearOutBuffer 
-                                tmp: switch tagId [
-                                    21 [parse-DefineBitsJPEG2] 
-                                    6 [parse-DefineBits]
-                                ] 
-                                file: export-image-tag tagId md5 tmp 
-                                repend images-to-compact/jpeg3 [
-                                    get-image-size file 
-                                    reduce [tmp/1 file]
-                                ]
-                            ]
-                        ] 
-                        6 20 21 36 [
-                        ] 
-                        35 [
-                            md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                            with swf-tag-parser [
-                                setStreamBuffer tagData 
-                                clearOutBuffer 
-                                tmp: parse-DefineBitsJPEG3 
-                                file: export-image-tag tagId md5 tmp 
-                                repend images-to-compact/jpeg3 [
-                                    get-image-size file 
-                                    reduce [tmp/1 file]
-                                ]
-                            ]
-                        ] 
-                        8 [with swf-tag-parser [JPEGTables: parse-JPEGTables]]
-                    ]
-                ] 
-                unless empty? images-to-compact/jpeg3 [
-                    maxpair: 0x0 
-                    foreach [size id] images-to-compact/jpeg3 [
-                        maxpair: max maxpair size
-                    ] 
-                    maxi: max maxpair/x maxpair/y 
-                    size: case [
-                        maxi < 64 [64x64] 
-                        maxi < 128 [128x128] 
-                        maxi < 256 [256x256] 
-                        maxi < 512 [512x512] 
-                        true [1024x1024]
-                    ] 
-                    while [not empty? second result: rectangle-pack images-to-compact/jpeg3 size] [
-                        if size/x >= 1024 [
-                            print "images too big to fit in one bmp" 
-                            ask "" 
-                            break
-                        ] 
-                        size: size * 2
-                    ] 
-                    ?? images-to-compact 
-                    probe result 
-                    combine-files result/1 size %/f/test.jpg 
-                    combine-files result/1 size %/f/test.png 
-                    ask ""
-                ]
-            ] [
-                while [not tail? inBuffer] [
-                    tagStart: index? inBuffer 
-                    tagAndLength: readUI16 
-                    tagId: to integer! ((65472 and tagAndLength) / (2 ** 6)) 
-                    tagLength: tagAndLength and 63 
-                    if tagLength = 63 [tagLength: readUI32] 
-                    tagData: either tagLength > 0 [readBytes tagLength] [make binary! 0] 
-                    insert tail rescaleResult rescale-swf-tag tagId tagData 
-                    if tagId = 1 [
-                        frames: frames + 1
-                    ]
-                ]
-            ]
-        ] [
-            clear head inBuffer 
-            recycle 
-            throw err
-        ] 
-        rswf/frames: frames 
-        rescaleResult: create-swf/rate/version/compressed 
-        as-pair (swf-tag-parser/rsci-x SWF/HEADER/FRAME-SIZE/2 / 20) (swf-tag-parser/rsci-y SWF/HEADER/FRAME-SIZE/4 / 20) 
-        rescaleResult 
-        swf/header/frame-rate 
-        swf/header/version 
-        true 
-        if into [write/binary out-file rescaleResult] 
-        recycle 
-        rescaleResult
-    ] 
-    set 'combine-swf-bmps func [
-        {Tries to pack bitmaps into more compact texture map(s)} 
-        swf-file [file! url! string!] "the SWF source file" 
-        /into out-file [file!] 
-        /compact "Uses bitmap packing" 
-        /local err sysprint sysprin action swfDir swfName rescaleResult frames px py swfTags 
-        tmp images-to-compact file md5 maxpair maxi round-to-pow2
-    ] [
-        frames: 0 
-        tagsStartIndex: 0 
-        if all [string? swf-file] [swf-file: to-rebol-file swf-file] 
-        swfName: copy find/last/tail swf-file #"/" 
-        unless swfDir: export-dir [
-            swfDir: either url? swf-file [
-                what-dir
-            ] [first split-path swf-file]
-        ] 
-        round-to-pow2: func [v /local p] [repeat i 12 [if v <= (p: 2 ** i) [return p]] none] 
-        remove-img-with-id: func [imgs id] [
-            while [not tail? imgs] [
-                if id = imgs/2/1 [
-                    remove/part imgs 2 
-                    break
-                ] 
-                imgs: skip imgs 2
-            ] 
-            imgs: head imgs
-        ] 
-        probe swfDir: rejoin [swfDir swfName %_export/] 
-        if not exists? swfDir [make-dir/deep swfDir] 
-        setStreamBuffer open-swf-stream probe swf-file 
-        clearOutBuffer 
-        if error? set/any 'err try [
-            parse-swf-header 
-            swf-tag-parser/parseActions: swfTagRescaleActions 
-            swf-tag-parser/swfVersion: swf/header/version 
-            swf-tag-parser/swfDir: swfDir 
-            swf-tag-parser/swfName: swfName 
-            tagsStartIndex: index? inBuffer 
-            swfTags: copy [] 
-            images-to-compact: context [
-                jpeg3: copy [] 
-                jpeg2: copy []
-            ] 
-            swf-tag-parser/parseActions: swfTagParseImages 
-            foreach-swf-tag [
-                repend swfTags [tagId tagData] 
-                switch tagId [
-                    76 [
-                        with swf-tag-parser [
-                            setStreamBuffer tagData 
-                            clearOutBuffer 
-                            foreach [id name] parse-SymbolClass [
-                                remove-img-with-id images-to-compact/jpeg3 id 
-                                remove-img-with-id images-to-compact/jpeg2 id
-                            ]
-                        ]
-                    ] 
-                    56 [
-                        with swf-tag-parser [
-                            setStreamBuffer tagData 
-                            clearOutBuffer 
-                            tmp: parse-ExportAssets
-                        ]
-                    ] 
-                    6 21 [
-                        md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                        with swf-tag-parser [
-                            setStreamBuffer tagData 
-                            clearOutBuffer 
-                            tmp: switch tagId [
-                                21 [parse-DefineBitsJPEG2] 
-                                6 [parse-DefineBits]
-                            ] 
-                            file: export-image-tag tagId md5 tmp 
-                            repend images-to-compact/jpeg2 [
-                                get-image-size file 
-                                reduce [tmp/1 file]
-                            ]
-                        ]
-                    ] 
-                    6 20 21 36 [
-                    ] 
-                    35 [
-                        md5: enbase/base checksum/method skip tagData 2 'md5 16 
-                        with swf-tag-parser [
-                            setStreamBuffer tagData 
-                            clearOutBuffer 
-                            tmp: parse-DefineBitsJPEG3 
-                            file: export-image-tag tagId md5 tmp 
-                            export-image-tag/alpha tagId md5 tmp 
-                            size: get-image-size file 
-                            print ["??" size file] 
-                            if all [size/x <= 2048 size/y <= 2048] [
-                                repend images-to-compact/jpeg3 [
-                                    size 
-                                    reduce [tmp/1 file]
-                                ]
-                            ] 
-                            change/only back tail swfTags copy/deep tmp
-                        ]
-                    ]
-                ]
-            ] 
-            swf-tag-parser/data: context compose/only [
-                combined-bitmaps: copy [] 
-                combined-bmp-id: none
-            ] 
-            if 10 < length? images-to-compact/jpeg3 [
-                get-comp-size: func [data /local maxpair maxi] [
-                    maxpair: 0x0 
-                    foreach [size id] data [
-                        maxpair: max maxpair size
-                    ] 
-                    maxpair/x: to-integer round-to-pow2 maxpair/x 
-                    maxpair/y: to-integer round-to-pow2 maxpair/y 
-                    print ["MAXPAIR:" maxpair] 
-                    comment {
-^-^-^-^-^-^-case [
-^-^-^-^-^-^-^-maxi < 64   [  64x64  ]
-^-^-^-^-^-^-^-maxi < 128  [ 128x128 ]
-^-^-^-^-^-^-^-maxi < 256  [ 256x256 ]
-^-^-^-^-^-^-^-maxi < 512  [ 512x512 ]
-^-^-^-^-^-^-^-maxi < 1024 [1024x1024]
-^-^-^-^-^-^-^-true        [2048x2048]
-^-^-^-^-^-^-]} 
-                    maxpair
-                ] 
-                probe size: get-comp-size images-to-compact/jpeg3 
-                data-to-process: images-to-compact/jpeg3 
-                while [
-                    10 < length? data-to-process 
-                    not empty? probe second result: rectangle-pack data-to-process size
-                ] [
-                    probe data-to-process 
-                    either size/x > size/y [
-                        size/y: size/y * 2
-                    ] [size/x: size/x * 2] 
-                    if any [
-                        size/x > 1024 
-                        size/y > 1024
-                    ] [
-                        print [{Coumponed bitmap would be too large! Excluding bitmap..} copy/part data-to-process 2] 
-                        remove/part data-to-process 2 
-                        size: get-comp-size images-to-compact/jpeg3 
-                        size/x: min 1024 size/x 
-                        size/y: min 1024 size/y
-                    ] 
-                    print reform ["new size:" size "^/[ENTER to CONTRINUE]"]
-                ] 
-                maxi: 0 
-                foreach [pos size data] result/1 [
-                    maxi: max maxi (pos/y + size/y)
-                ] 
-                md5: enbase/base checksum/method mold result/1 'md5 16 
-                probe combined-bmp-file: rejoin [swfDir %combined_ md5] 
-                swf-tag-parser/combine-files result/1 size join combined-bmp-file %.jpg 
-                swf-tag-parser/combine-files result/1 size join combined-bmp-file %.png 
-                foreach [pos size data] result/1 [
-                    repend swf-tag-parser/data/combined-bitmaps [data/1 pos]
-                ] 
-                new-line/skip swf-tag-parser/data/combined-bitmaps true 2
-            ] 
-            swf-tag-parser/parseActions: swfTagOptimizeActions2 
-            swf-tag-parser/use-BB-optimization?: false 
-            if empty? swf-tag-parser/data/combined-bitmaps [print "No compacting needed" return none] 
-            foreach [Id tagData] swfTags [
-                tagId: id 
-                switch/default tagId [
-                    35 [
-                        either tmp: select swf-tag-parser/data/combined-bitmaps tagData/1 [
-                            unless swf-tag-parser/data/combined-bmp-id [
-                                swf-tag-parser/data/combined-bmp-id: tagData/1 
-                                bin1: read/binary join combined-bmp-file %.jpg 
-                                bin2: load join combined-bmp-file %.png 
-                                write-tag 35 abin [
-                                    int-to-ui16 tagData/1 
-                                    int-to-ui32 length? bin1 
-                                    bin1 
-                                    head head remove/part tail compress bin2/alpha -4
-                                ]
-                            ]
-                        ] [
-                            write-tag 35 abin [
-                                int-to-ui16 tagData/1 
-                                int-to-ui32 length? tagData/2 
-                                tagData/2 
-                                tagData/3
-                            ]
-                        ]
-                    ] 
-                    2 22 32 67 83 [
-                        with swf-tag-parser [
-                            setStreamBuffer tagData 
-                            clearOutBuffer 
-                            result: combine-updateShape
-                        ] 
-                        write-tag tagId result
-                    ] 
-                    56 [
-                        print ["EXPORT"] 
-                        with swf-tag-parser [
-                            setStreamBuffer probe tagData 
-                            clearOutBuffer 
-                            id: readUI16 
-                            probe name: readSTRING
-                        ]
-                    ]
-                ] [
-                    write-tag tagId tagData
-                ]
-            ]
-        ] [
-            clear head inBuffer 
-            recycle 
-            throw err
-        ] 
-        rswf/frames: swf/header/frame-count 
-        rescaleResult: create-swf/rate/version/compressed 
-        as-pair (SWF/HEADER/FRAME-SIZE/2 / 20) (SWF/HEADER/FRAME-SIZE/4 / 20) 
-        head outBuffer 
-        swf/header/frame-rate 
-        swf/header/version 
-        true 
-        if into [write/binary out-file rescaleResult] 
-        recycle 
-        rescaleResult
-    ] 
-    comment {
-#### Include: %parsers/swf-tags.r
-#### Title:   "swfTags"
-#### Author:  ""
-----} 
-    swfTagNames: make hash! [0 "end" 1 "showFrame" 
-        2 "DefineShape" 
-        3 "FreeCharacter" 
-        4 "PlaceObject" 
-        5 "RemoveObject" 
-        6 "DefineBits (JPEG)" 
-        7 "DefineButton" 
-        8 "JPEGTables" 
-        9 "setBackgroundColor" 
-        10 "DefineFont" 
-        11 "DefineText" 
-        12 "DoAction Tag" 
-        13 "DefineFontInfo" 
-        14 "DefineSound" 
-        15 "StartSound" 
-        18 "SoundStreamHead" 
-        17 "DefineButtonSound" 
-        19 "SoundStreamBlock" 
-        20 "DefineBitsLossless" 
-        21 "DefineBitsJPEG2" 
-        22 "DefineShape2" 
-        23 "DefineButtonCxform" 
-        24 "Protect" 
-        26 "PlaceObject2" 
-        28 "RemoveObject2" 
-        31 "?GeneratorCommand?" 
-        32 "DefineShape3" 
-        33 "DefineText2" 
-        34 "DefineButton2" 
-        35 "DefineBitsJPEG3" 
-        36 "DefineBitsLossless2" 
-        37 "DefineEditText" 
-        38 "DefineVideo" 
-        39 "DefineSprite" 
-        40 "SWT-CharacterName" 
-        41 "SerialNumber" 
-        42 "DefineTextFormat" 
-        43 "FrameLabel" 
-        45 "SoundStreamHead2" 
-        46 "DefineMorphShape" 
-        48 "DefineFont2" 
-        49 "?GenCommand?" 
-        50 "?DefineCommandObj?" 
-        51 "?Characterset?" 
-        52 "?FontRef?" 
-        56 "ExportAssets" 
-        57 "ImportAssets" 
-        58 "EnableDebugger" 
-        59 "DoInitAction" 
-        60 "DefineVideoStream" 
-        61 "VideoFrame" 
-        62 "DefineFontInfo2" 
-        63 "DebugID" 
-        64 "ProtectDebug2" 
-        65 "ScriptLimits" 
-        66 "SetTabIndex" 
-        67 "DefineShape4" 
-        69 "FileAttributes" 
-        70 "PlaceObject3" 
-        71 "Import2" 
-        73 "DefineAlignZones" 
-        74 "CSMTextSettings" 
-        75 "DefineFont3" 
-        77 "MetaData" 
-        78 "DefineScalingGrid" 
-        72 "DoAction3" 
-        76 "DoAction3StartupClass" 
-        82 "DoAction3" 
-        83 "DefineShape5" 
-        84 "DefineMorphShape2" 
-        86 "DefineSceneAndFrameLabelData" 
-        87 "DefineBinaryData" 
-        88 "DefineFontName" 
-        89 "StartSound2" 
-        90 "DefineBitsJPEG4" 
-        91 "DefineFont4" 
-        93 "Telemetry" 
-        1023 "DefineBitsPtr"
-    ] 
-    swfTagParseActions: make hash! [
-        2 [parse-DefineShape] 
-        4 [parse-PlaceObject] 
-        5 [parse-RemoveObject] 
-        6 [parse-DefineBits] 
-        7 [parse-DefineButton] 
-        8 [parse-JPEGTables] 
-        9 [to-tuple tagData] 
-        10 [parse-DefineFont] 
-        11 [parse-DefineText] 
-        12 [parse-DoAction] 
-        13 [parse-DefineFontInfo] 
-        14 [parse-DefineSound] 
-        15 [parse-StartSound] 
-        17 [parse-DefineButtonSound] 
-        18 [parse-SoundStreamHead] 
-        19 [parse-SoundStreamBlock] 
-        20 [parse-DefineBitsLossless] 
-        21 [parse-DefineBitsJPEG2] 
-        22 [parse-DefineShape] 
-        23 [parse-DefineButtonCxform] 
-        26 [parse-PlaceObject2] 
-        28 [parse-RemoveObject2] 
-        32 [parse-DefineShape] 
-        33 [parse-DefineText] 
-        34 [parse-DefineButton2] 
-        35 [parse-DefineBitsJPEG3] 
-        36 [parse-DefineBitsLossless] 
-        37 [parse-DefineEditText] 
-        39 [parse-DefineSprite] 
-        40 [parse-SWT-CharacterName] 
-        41 [parse-SerialNumber] 
-        42 [parse-DefineTextFormat] 
-        43 [probe as-string readSTRING] 
-        45 [parse-SoundStreamHead] 
-        46 [parse-DefineMorphShape] 
-        48 [parse-DefineFont2] 
-        56 [parse-ExportAssets] 
-        57 [parse-ImportAssets] 
-        58 [parse-EnableDebugger] 
-        59 [parse-DoInitAction] 
-        60 [parse-DefineVideoStream] 
-        61 [parse-VideoFrame] 
-        62 [parse-DefineFontInfo2] 
-        63 [readRest] 
-        64 [parse-EnableDebugger2] 
-        65 [parse-ScriptLimits] 
-        66 [parse-SetTabIndex] 
-        67 [parse-DefineShape] 
-        69 [parse-FileAttributes] 
-        70 [parse-PlaceObject3] 
-        71 [parse-ImportAssets2] 
-        73 [parse-DefineAlignZones] 
-        74 [parse-CSMTextSettings] 
-        75 [parse-DefineFont2] 
-        77 [as-string tagData] 
-        78 [parse-DefineScalingGrid] 
-        72 [parse-DoABC] 
-        76 [parse-SymbolClass] 
-        82 [parse-DoABC2] 
-        83 [parse-DefineShape] 
-        84 [parse-DefineMorphShape2] 
-        86 [parse-DefineSceneAndFrameLabelData] 
-        87 [parse-DefineBinaryData] 
-        88 [parse-DefineFontName] 
-        89 [parse-StartSound2] 
-        90 [parse-DefineBitsJPEG4] 
-        93 [tagData] 
-        91 [parse-DefineFont4]
-    ] 
-    swfTagImportActions: make hash! [
-        2 [import-Shape] 
-        4 [replacedID] 
-        5 [replacedID] 
-        6 [import-or-reuse] 
-        7 [import-DefineButton] 
-        10 [import-or-reuse] 
-        11 [import-DefineText] 
-        13 [replacedID] 
-        14 [import-or-reuse] 
-        15 [replacedID] 
-        17 [import-DefineButtonSound] 
-        20 [import-or-reuse] 
-        21 [import-or-reuse] 
-        22 [import-Shape] 
-        23 [replacedID] 
-        26 [import-PlaceObject2] 
-        32 [import-Shape] 
-        33 [import-DefineText] 
-        34 [import-DefineButton2] 
-        35 [import-or-reuse] 
-        36 [import-or-reuse] 
-        37 [import-DefineEditText] 
-        38 [import-or-reuse] 
-        39 [import-DefineSprite] 
-        40 [import-or-reuse] 
-        42 [print "!! Importing unknown TAG DefineTextFormat" replacedID] 
-        43 [append imported-labels probe as-string readSTRING] 
-        46 [import-DefineMorphShape] 
-        48 [import-or-reuse] 
-        56 [import-ExportAssets] 
-        57 [import-ImportAssets] 
-        59 [replacedID] 
-        60 [import-or-reuse] 
-        61 [replacedID] 
-        62 [replacedID] 
-        67 [import-Shape] 
-        70 [import-PlaceObject2] 
-        71 [import-ImportAssets] 
-        73 [replacedID] 
-        74 [replacedID] 
-        75 [import-or-reuse] 
-        78 [replacedID] 
-        76 [import-SymbolClass] 
-        83 [import-Shape] 
-        84 [import-DefineMorphShape2] 
-        87 [import-or-reuse] 
-        88 [replacedID] 
-        90 [import-or-reuse] 
-        91 [import-or-reuse]
-    ] 
-    swfTagParseImages: make hash! [
-        6 [parse-DefineBits] 
-        8 [
-            JPEGTables: parse-JPEGTables 
-            none
-        ] 
-        20 [parse-DefineBitsLossless] 
-        21 [parse-DefineBitsJPEG2] 
-        35 [parse-DefineBitsJPEG3] 
-        36 [parse-DefineBitsLossless2] 
-        90 [parse-DefineBitsJPEG4]
-    ] 
-    swfTagRescaleActions: make hash! [
-        2 [rescale-Shape] 
-        6 [rescale-DefineBits] 
-        8 [
-            JPEGTables: parse-JPEGTables 
-            none
-        ] 
-        20 [rescale-DefineBitsLossless] 
-        21 [rescale-DefineBitsJPEG2] 
-        22 [rescale-Shape] 
-        26 [rescale-PlaceObject2] 
-        32 [rescale-Shape] 
-        35 [rescale-DefineBitsJPEG3] 
-        36 [rescale-DefineBitsLossless2] 
-        39 [rescale-DefineSprite] 
-        46 [rescale-DefineMorphShape] 
-        67 [rescale-Shape] 
-        70 [rescale-PlaceObject3] 
-        83 [rescale-Shape] 
-        84 [rescale-DefineMorphShape]
-    ] 
-    comment "---- end of include %parsers/swf-tags.r ----" 
-    comment {
-#### Include: %parsers/swf-to-rswf-actions.r
-#### Title:   "SWF-to-RSWF tag Actions"
-#### Author:  ""
-----} 
-    swfTagToRSWFActions: make hash! [0 ["end"] 1 ["showFrame"] 
-        2 [
-            convert-DefineShape
-        ] 
-        4 [parse-PlaceObject] 
-        5 [parse-RemoveObject] 
-        6 [
-            tmp: parse-DefineBits 
-            file: export-file 6 tmp/1 %.jpg (join JPEGTables skip tmp/2 2) 
-            ajoin ["DefineBits " tmp/1 " " mold file]
-        ] 
-        7 [parse-DefineButton] 
-        8 [
-            JPEGTables: parse-JPEGTables 
-            head remove/part skip tail JPEGTables -2 2 
-            none
-        ] 
-        9 [ajoin ["Background " form to-tuple tagData]] 
-        10 [parse-DefineFont] 
-        11 [parse-DefineText] 
-        12 [parse-DoAction] 
-        13 [parse-DefineFontInfo] 
-        14 [parse-DefineSound] 
-        15 [parse-StartSound] 
-        17 [parse-DefineButtonSound] 
-        18 [parse-SoundStreamHead] 
-        19 [parse-SoundStreamBlock] 
-        20 [parse-DefineBitsLossless] 
-        21 [parse-DefineBitsJPEG2] 
-        22 [convert-DefineShape] 
-        23 [parse-DefineButtonCxform] 
-        26 [convert-PlaceObject2] 
-        28 [parse-RemoveObject2] 
-        32 [convert-DefineShape] 
-        33 [parse-DefineText] 
-        34 [parse-DefineButton2] 
-        35 [parse-DefineBitsJPEG3] 
-        36 [parse-DefineBitsLossless] 
-        37 [parse-DefineEditText] 
-        39 [convert-DefineSprite] 
-        40 [parse-SWT-CharacterName] 
-        41 [parse-SerialNumber] 
-        42 [parse-DefineTextFormat] 
-        43 [probe readSTRING] 
-        45 [parse-SoundStreamHead] 
-        46 [parse-DefineMorphShape] 
-        48 [parse-DefineFont2] 
-        56 [convert-ExportAssets] 
-        57 [parse-ImportAssets] 
-        58 [parse-EnableDebugger] 
-        59 [parse-DoInitAction] 
-        60 [parse-DefineVideoStream] 
-        61 [parse-VideoFrame] 
-        62 [parse-DefineFontInfo2] 
-        64 [parse-EnableDebugger2] 
-        65 [parse-ScriptLimits] 
-        66 [parse-SetTabIndex] 
-        67 [parse-DefineShape] 
-        69 [ajoin ["FileAttributes " mold parse-FileAttributes]] 
-        70 [probe parse-PlaceObject3] 
-        71 [parse-ImportAssets2] 
-        73 [parse-DefineAlignZones] 
-        74 [parse-CSMTextSettings] 
-        75 [parse-DefineFont2] 
-        77 [as-string tagData] 
-        78 [parse-DefineScalingGrid] 
-        72 [parse-DoABC] 
-        76 [parse-SymbolClass] 
-        82 [parse-DoABC2] 
-        83 [parse-DefineShape] 
-        84 [parse-DefineMorphShape2] 
-        86 [parse-DefineSceneAndFrameLabelData] 
-        87 [parse-DefineBinaryData] 
-        88 [parse-DefineFontName]
-    ] 
-    comment {---- end of include %parsers/swf-to-rswf-actions.r ----} 
-    comment {
-#### Include: %parsers/swf-optimize-actions.r
-#### Title:   "SWF-optimize tag Actions"
-#### Author:  ""
-----} 
-    swfTagOptimizeActions: make hash! [
-        2 [
-            optimize-detectBmpFillBounds
-        ] 
-        6 [parse-DefineBits] 
-        7 [parse-DefineButton] 
-        8 [
-            JPEGTables: parse-JPEGTables 
-            head remove/part skip tail JPEGTables -2 2 
-            none
-        ] 
-        10 [parse-DefineFont] 
-        11 [parse-DefineText] 
-        12 [parse-DoAction] 
-        13 [parse-DefineFontInfo] 
-        14 [parse-DefineSound] 
-        15 [parse-StartSound] 
-        17 [parse-DefineButtonSound] 
-        18 [parse-SoundStreamHead] 
-        19 [parse-SoundStreamBlock] 
-        20 [parse-DefineBitsLossless] 
-        21 [parse-DefineBitsJPEG2] 
-        22 [optimize-detectBmpFillBounds] 
-        23 [parse-DefineButtonCxform] 
-        28 [parse-RemoveObject2] 
-        32 [optimize-detectBmpFillBounds] 
-        33 [parse-DefineText] 
-        34 [parse-DefineButton2] 
-        35 [
-            parse-DefineBitsJPEG3
-        ] 
-        36 [parse-DefineBitsLossless] 
-        37 [parse-DefineEditText] 
-        39 [convert-DefineSprite] 
-        40 [parse-SWT-CharacterName] 
-        41 [parse-SerialNumber] 
-        42 [parse-DefineTextFormat] 
-        43 [probe readSTRING] 
-        45 [parse-SoundStreamHead] 
-        46 [parse-DefineMorphShape] 
-        48 [parse-DefineFont2] 
-        56 [parse-ExportAssets] 
-        57 [parse-ImportAssets] 
-        58 [parse-EnableDebugger] 
-        59 [parse-DoInitAction] 
-        60 [parse-DefineVideoStream] 
-        61 [parse-VideoFrame] 
-        62 [parse-DefineFontInfo2] 
-        64 [parse-EnableDebugger2] 
-        65 [parse-ScriptLimits] 
-        66 [parse-SetTabIndex] 
-        67 [optimize-detectBmpFillBounds] 
-        69 [ajoin ["FileAttributes " mold parse-FileAttributes]] 
-        70 [parse-PlaceObject3] 
-        71 [parse-ImportAssets2] 
-        73 [parse-DefineAlignZones] 
-        74 [parse-CSMTextSettings] 
-        75 [parse-DefineFont2] 
-        77 [as-string tagData] 
-        78 [parse-DefineScalingGrid] 
-        72 [parse-DoABC] 
-        76 [parse-SymbolClass] 
-        82 [parse-DoABC2] 
-        83 [optimize-detectBmpFillBounds] 
-        84 [parse-DefineMorphShape2] 
-        86 [parse-DefineSceneAndFrameLabelData] 
-        87 [parse-DefineBinaryData] 
-        88 [parse-DefineFontName]
-    ] 
-    swfTagOptimizeActions2: make hash! [
-        2 [optimize-updateShape] 
-        22 [optimize-updateShape] 
-        32 [optimize-updateShape] 
-        67 [optimize-updateShape] 
-        83 [optimize-updateShape]
-    ] 
-    comment {---- end of include %parsers/swf-optimize-actions.r ----} 
-    comment {
-#### Include: %swf-tag-parser.r
-#### Title:   "swf-tag-parser"
-#### Author:  ""
-----} 
-    swf-tag-parser: make stream-io [
-        verbal?: on 
-        output-file: none 
-        parseActions: copy [] 
-        tagSpecifications: copy [] 
-        onlyTagIds: none 
-        swfVersion: none 
-        swfDir: swfName: none 
-        tmp: none 
-        file: none 
-        data: none 
-        used-ids: none 
-        last-depth: none 
-        init-depth: 0 
-        tag-checksums: copy [] 
-        set 'parse-swf-tag func [tagId tagData /local err action st st2] [
-            swf-parser/tagId: tagId 
-            either none? action: select parseActions tagId [
-                result: none
-            ] [
-                setStreamBuffer tagData 
-                if error? set/any 'err try [
-                    set/any 'result do bind/copy action 'self
-                ] [
-                    print ajoin ["!!! ERROR while parsing tag:" select swfTagNames tagId "(" tagId ")"] 
-                    throw err
-                ]
-            ] 
-            if spriteLevel = 0 [
-                if verbal? [
-                    prin getTagInfo tagId result
-                ] 
-                if port? output-file [
-                    insert tail output-file getTagInfo tagId result
-                ]
-            ] 
-            result
-        ] 
-        set 'swf-tag-to-rswf func [tagId tagData /local err action st st2] [
-            either none? action: select parseActions tagId [
-                result: none
-            ] [
-                setStreamBuffer tagData 
-                if error? set/any 'err try [
-                    set/any 'result do bind/copy action 'self
-                ] [
-                    print ajoin ["!!! ERROR while parsing tag:" select swfTagNames tagId "(" tagId ")"] 
-                    throw err
-                ]
-            ] 
-            if spriteLevel = 0 [
-                switch/default type?/word result [
-                    string! [print result] 
-                    none! []
-                ] [
-                    print select swfTagNames tagId
-                ]
-            ] 
-            result
-        ] 
-        readID: :readUI16 
-        readUsedID: :readUI16 
-        spriteLevel: 0 
-        names-to-ids: copy [] 
-        JPEGTables: none 
-        export-file: func [tag id ext data /local file] [
-            write/binary probe file: rejoin [swfDir %tag tag %_id id ext] data 
-            file
-        ] 
-        StreamSoundCompression: none 
-        comment {
-^-StreamSoundCompression -
-^-^-defined in SoundStreamHead tag
-^-^-used in SoundStreamBlock
-^-} 
-        tabs: copy "" 
-        tabsspr: copy "" 
-        tabind+: does [append tabs "^-"] 
-        tabind-: does [remove tabs] 
-        tabspr+: does [append tabsspr "^-"] 
-        tabspr-: does [remove tabsspr] 
-        getTagInfo: func [tagId data /local fields] [
-            ajoin [
-                tabsspr select swfTagNames tagId "(" either tagId < 10 [join "0" tagId] [tagId] "):" 
-                either fields: select tagFields tagId [
-                    join LF getTagFields data :fields true
-                ] [join either none? data ["x"] [join " " mold data] LF]
-            ]
-        ] 
-        getTagFields: func [data fields indent? /local result fld res p name ind l] [
-            unless data [return ""] 
-            if indent? [tabind+] 
-            result: copy "" 
-            unless block? data [data: reduce [data]] 
-            either function? :fields [
-                insert tail result fields data
-            ] [
-                parse fields [any [
-                        p: (if any [not block? data tail? data] [p: tail p]) :p 
-                        [
-                            set fld string! (
-                                res: either none? data/1 [""] [
-                                    ajoin [
-                                        tabs fld ": " 
-                                        either all [
-                                            binary? data/1 
-                                            20 < l: length? data/1
-                                        ] [
-                                            ajoin [l " Bytes = " head remove back tail mold copy/part data/1 10 "..."]
-                                        ] [mold data/1] 
-                                        LF
-                                    ]
-                                ]
-                            ) 
-                            | set fld block! set ind ['noIndent | none] (
-                                res: getTagFields data/1 fld (ind <> 'noIndent)
-                            ) 
-                            | set fld function! (res: fld data/1) 
-                            | 'group set name string! set fld block! set ind ['noIndent | none] (
-                                res: either none? data/1 [""] [
-                                    ajoin [tabs name ": [^/" getTagFields data/1 fld (ind <> 'noIndent) tabs "]^/"]
-                                ]
-                            ) 
-                            | 'get set name [lit-word! | word!] set ind ['noIndent | none] (
-                                if ind = 'noIndent [tabind-] 
-                                res: ajoin [tabs name ": " getFieldData name data/1 LF] 
-                                if ind = 'noIndent [tabind+]
-                            )
-                        ] (
-                            insert tail result res 
-                            data: next data
-                        )
-                    ]] 
-                data: head data 
-                fields: head fields
-            ] 
-            if indent? [tabind-] 
-            result
-        ] 
-        comment {
-#### Include: %parsers/swf-tags-fields.r
-#### Title:   "swfTags - Fields"
-#### Author:  ""
-----} 
-        pad: func [val num] [head insert/dup tail val: form val #" " num - length? val] 
-        formatFillStyle: func [data /local] [
-            if none? data [
-                return ""
-            ] 
-            ajoin switch/default data/1 [0 [["color: " data/2 LF]] 
-                16 [[
-                        "linearGradiend:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getFieldData 'Gradients data/2/2 
-                        LF
-                    ]] 
-                18 [[
-                        "radialGradient:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getFieldData 'Gradients data/2/2 
-                        LF
-                    ]] 
-                19 [[
-                        "focalGradient:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getFieldData 'Gradients data/2/2 
-                        LF
-                    ]] 
-                64 [[
-                        "repeating bitmap ID: " data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        LF
-                    ]] 
-                65 [[
-                        "clipped bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        LF
-                    ]] 
-                66 [[
-                        "non-smoothed repeating bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        LF
-                    ]] 
-                67 [[
-                        "non-smoothed clipped bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        LF
-                    ]]
-            ] [[data LF]]
-        ] 
-        formatMorphFillStyle: func [data /local] [
-            if none? data [
-                return ""
-            ] 
-            ajoin switch/default data/1 [0 [["color: " data/2 LF]] 
-                16 [[
-                        "linearGradiend:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getFieldData 'MorphGradients data/2/3 
-                        LF
-                    ]] 
-                18 [[
-                        "radialGradient:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getFieldData 'MorphGradients data/2/3 
-                        LF
-                    ]] 
-                19 [[
-                        "focalGradient:" LF 
-                        getTagFields data/2/1 fieldsMATRIX true 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getFieldData 'MorphGradients data/2/3 
-                        LF
-                    ]] 
-                64 [[
-                        "repeating bitmap ID: " data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getTagFields data/2/3 fieldsMATRIX true 
-                        LF
-                    ]] 
-                65 [[
-                        "clipped bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getTagFields data/2/3 fieldsMATRIX true 
-                        LF
-                    ]] 
-                66 [[
-                        "non-smoothed repeating bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getTagFields data/2/3 fieldsMATRIX true 
-                        LF
-                    ]] 
-                67 [[
-                        "non-smoothed clipped bitmap ID:" data/2/1 LF 
-                        getTagFields data/2/2 fieldsMATRIX true 
-                        getTagFields data/2/3 fieldsMATRIX true 
-                        LF
-                    ]]
-            ] [[data LF]]
-        ] 
-        getFieldData: func [type data /local i row result val] [
-            result: copy "" 
-            unless data [return result] 
-            tabind+ 
-            switch type [
-                FillStyles [
-                    append result LF 
-                    i: 1 
-                    while [not tail? data] [
-                        row: data/1 
-                        append result ajoin [
-                            tabs "#" i " " 
-                            formatFillStyle row
-                        ] 
-                        i: i + 1 
-                        comment {
-^-^-^-^-type >= 64 [ ;bitmap
-^-^-^-^-^-reduce [
-^-^-^-^-^-^-readID ;bitmapID
-^-^-^-^-^-^-readMATRIX
-^-^-^-^-^-]
-^-^-^-^-]
-^-^-^-]"
-^-^-^-^-^-mold data/1 LF
-^-^-^-^-]
-^-^-^-^-} 
-                        data: next data
-                    ]
-                ] 
-                MorphFillStyles [
-                    append result LF 
-                    i: 1 
-                    while [not tail? data] [
-                        row: data/1 
-                        append result ajoin [
-                            tabs "#" i " " 
-                            formatMorphFillStyle row
-                        ] 
-                        i: i + 1 
-                        data: next data
-                    ]
-                ] 
-                LineStyles [
-                    i: 1 
-                    while [not tail? data] [
-                        probe row: data/1 
-                        append result ajoin [
-                            LF tabs "#" i ": " 
-                            "width: " row/1 
-                            either none? row/2 [""] [" miterLimit:" row/2] 
-                            ajoin either tuple? row/3 [
-                                [" color: " row/3]
-                            ] [[" " formatFillStyle row/3]] 
-                            either row/4 [ajoin [LF tabs formatFillStyle row/4]] [""]
-                        ] 
-                        data: next data 
-                        i: i + 1
-                    ]
-                ] 
-                Gradients [
-                    append result ajoin [tabs "SpreadMode: " pick ["Pad" "Reflect" "Repeat" "-"] (data/1 + 1) LF] 
-                    append result ajoin [tabs "InterpolationMode: " pick ["Normal RGB" "Linear RGB" "-" "-"] (data/2 + 1) LF] 
-                    append result ajoin [tabs "GradientColors: " LF] 
-                    foreach [ratio color] data/3 [
-                        append result ajoin [tabs "^-" pad ratio 5 color LF]
-                    ] 
-                    if data/4 [append result ajoin [tabs "FocalPoint: " data/4 LF]]
-                ] 
-                MorphGradients [
-                    append result ajoin [tabs "SpreadMode: " pick ["Pad" "Reflect" "Repeat" "-"] (data/1 + 1) LF] 
-                    append result ajoin [tabs "InterpolationMode: " pick ["Normal RGB" "Linear RGB" "-" "-"] (data/2 + 1) LF] 
-                    append result ajoin [tabs "GradientColors: " LF] 
-                    foreach [ratio color] data/3 [
-                        append result ajoin [tabs "^-" pad ratio 5 color LF]
-                    ] 
-                    if data/4 [append result ajoin [tabs "FocalPoint: " data/4 LF]]
-                ] 
-                ShapeRecords [
-                    append result ajoin [LF tabs "Style:" LF] 
-                    parse data [any [
-                            'style set val block! (
-                                append result ajoin [tabs "ChangeStyle: " LF getTagFields val fieldsStyleChangeRecord true]
-                            ) 
-                            | 'line copy val some [integer!] (
-                                append result ajoin [tabs "Line: " val LF]
-                            ) 
-                            | 'curve copy val some [integer!] (
-                                append result ajoin [tabs "Curve: " val LF]
-                            )
-                        ]]
-                ] 
-                SpriteTags [
-                    append result LF 
-                    tabspr+ 
-                    while [not tail? data] [
-                        append result getTagInfo data/1/1 data/1/2 
-                        data: next data
-                    ] 
-                    tabspr-
-                ] 
-                SoundStreamBlock [
-                    if data/1 = 2 [
-                        append result ajoin [
-                            "MP3" LF 
-                            getTagFields next data [
-                                "SampleCount" 
-                                group "MP3SOUNDDATA" [
-                                    "SeekSamples" 
-                                    get 'MP3FRAMEs
-                                ]
-                            ] true
-                        ]
-                    ]
-                ] 
-                MP3FRAMEs [
-                    foreach [
-                        Syncword 
-                        MpegVersion 
-                        Layer 
-                        ProtectionBit 
-                        ChannelMode 
-                        ModeExtension 
-                        Copyright 
-                        Original 
-                        Emphasis 
-                        Bitrate 
-                        SamplingRate 
-                        soundata
-                    ] data [
-                        append result ajoin [
-                            LF 
-                            tabs 
-                            "MpegVersion: " pick [2.5 "" 2 1] (1 + MpegVersion) 
-                            " Layer: " pick ["" "III" "II" "I"] (1 + Layer) 
-                            " CRC: " ProtectionBit = 1 
-                            LF 
-                            tabs 
-                            "Bitrate: " Bitrate 
-                            " SamplingRate: " SamplingRate 
-                            " PaddingBit: " PaddingBit = 1 
-                            LF 
-                            tabs 
-                            "ChannelMode: " pick ["Stereo" "Joint stereo (Stereo)" "Dual channel" "Single channel (Mono)"] (1 + ChannelMode) 
-                            " Copyright: " Copyright = 1 
-                            " Original: " Original = 1 
-                            " Emphasis: " pick [none "50/15 ms" "" "CCIT J.17"] (1 + Emphasis) 
-                            LF 
-                            tabs "SampleDataSize: " length? soundata
-                        ]
-                    ]
-                ] 
-                BUTTONRECORDs [
-                    append result LF 
-                    while [not tail? data] [
-                        append result getTagFields data/1 fieldsBUTTONRECORDs true 
-                        data: next data
-                    ]
-                ] 
-                BUTTONstates [
-                    append result ajoin [
-                        data " =" 
-                        either isSetBit? data 1 [" up"] [""] 
-                        either isSetBit? data 2 [" over"] [""] 
-                        either isSetBit? data 3 [" down"] [""] 
-                        either isSetBit? data 4 [" hit"] [""] 
-                        LF
-                    ]
-                ]
-            ] 
-            error? try [data: head data] 
-            tabind- 
-            trim/tail result
-        ] 
-        fieldsFillStyles: func [data] [
-            tabind+ 
-            result: copy ""
-        ] 
-        fieldsDefineShape: [
-            "ID" 
-            "Bounds" 
-            group "Edge" [
-                "EdgeBounds" 
-                "UsesNonScalingStrokes" 
-                "UsesScalingStrokes"
-            ] 
-            group "StylesAndShapes" [
-                get 'FillStyles 
-                get 'LineStyles 
-                get 'ShapeRecords
-            ]
-        ] 
-        fieldsMATRIX: [
-            "Scale" 
-            "Rotate" 
-            "Translate"
-        ] 
-        fieldsCXFORM: [
-            "Multiplication" 
-            "Addition"
-        ] 
-        fieldsBUTTONRECORDs: reduce [
-            'get 'BUTTONstates 'noIndent 
-            "ID" 
-            "PlaceDepth" 
-            fieldsMATRIX 'noIndent 
-            fieldsCXFORM 'noIndent
-        ] 
-        fieldsStyleChangeRecord: [
-            "Move" 
-            "FillStyle0" 
-            "FillStyle1" 
-            "LineStyle" 
-            group "NewStyles" [
-                get 'FillStyles 
-                get 'LineStyles 
-                "numFillBits" 
-                "numLineBits"
-            ]
-        ] 
-        fieldsDefineText: reduce [
-            "ID" 
-            "TextBounds" 
-            fieldsMATRIX 'noIndent 
-            'group "TextRecords" [
-                "FontID" 
-                "Color" 
-                "XOffset" 
-                "YOffset" 
-                "TextHeight" 
-                "Glyphs"
-            ]
-        ] 
-        fieldsDefineBitsLossless: [
-            "BitmapID" 
-            "BitmapFormat" 
-            "BitmapWidth" 
-            "BitmapHeight" 
-            "BitmapColorTableSize" 
-            "ZlibBitmapData"
-        ] 
-        fieldsSoundStreamHead: [
-            "reserved" 
-            "PlaybackSoundRate" 
-            "16bit?" 
-            "Stereo?" 
-            "StreamSoundCompression" 
-            "StreamSoundRate" 
-            "StreamSoundSize" 
-            "StreamSoundType" 
-            "StreamSoundSampleCount" 
-            "LatencySeek"
-        ] 
-        fieldsSOUNDINFO: [
-            "reserved" 
-            "SyncStop?" 
-            "SyncNoMultiple?" 
-            "InPoint" 
-            "OutPoint" 
-            "Loops" 
-            "Envelope"
-        ] 
-        fieldsStartSound: reduce [
-            "SoundID" 
-            fieldsSOUNDINFO 'noIndent
-        ] 
-        comment {
-#### Include: %format/actions.r
-#### Title:   "SWF Actions formater"
-#### Author:  ""
-----} 
-        actionFormater: context [
-            bin-to-int: func [bin] [to-integer reverse as-binary bin] 
-            str-to-int: func [str] [bin-to-int as-binary str] 
-            bin-to-si: func [bin [binary!] /local i] [
-                i: to integer! reverse bin 
-                if i > 32767 [
-                    i: (i and 32767) - 32768
-                ] 
-                i
-            ] 
-            cp: ["^H" copy v 1 skip 
-                (append vals rejoin ["CP:" pick ConstantPool v: 1 + str-to-int v])
-            ] 
-            i32: ["^G" copy v 4 skip 
-                (append vals v: str-to-int v)
-            ] 
-            pstr: ["^@" copy v to "^@" 1 skip 
-                (append vals v)
-            ] 
-            logic: ["^E" copy v 1 skip 
-                (append vals pick [false true] 1 + str-to-int v)
-            ] 
-            null: ["^B" (append vals 'null)] 
-            undefined: ["^C" (append vals 'undefined)] 
-            dec: ["^F" copy v 8 skip 
-                (append vals from-ieee64f as-binary v)
-            ] 
-            reg: ["^D" copy v 1 skip 
-                (append vals to-path join "R:" str-to-int v)
-            ] 
-            str: [copy v to "^@" 1 skip (append vals v)] 
-            word: [copy v 2 skip (append vals str-to-int v)] 
-            ConstantPool: copy [] 
-            parseDefineFunc: func [data /local s params] [
-                s: make stream-io [inBuffer: data] 
-                context [
-                    name: s/readStringP 
-                    params: (
-                        params: copy [] 
-                        loop s/readShort [
-                            repend params [
-                                s/readStringP
-                            ]
-                        ] 
-                        params
-                    ) 
-                    length: s/readShort
-                ]
-            ] 
-            parseDefineFunc2: func [data /local s params] [
-                s: make stream-io [inBuffer: data] 
-                context [
-                    name: s/readStringP 
-                    arg_count: s/readShort 
-                    reg_count: s/readUI8 
-                    preload_parent: s/readBitLogic 
-                    preload_root: s/readBitLogic 
-                    suppress_super: s/readBitLogic 
-                    preload_super: s/readBitLogic 
-                    suppress_arguments: s/readBitLogic 
-                    preload_arguments: s/readBitLogic 
-                    suppress_this: s/readBitLogic 
-                    preload_this: s/readBitLogic 
-                    preload_global: (s/skipBits 7 s/readBitLogic) 
-                    params: (
-                        params: copy [] 
-                        loop arg_count [
-                            repend params [
-                                s/readUI8 
-                                s/readStringP
-                            ]
-                        ] 
-                        params
-                    ) 
-                    length: s/readShort
-                ]
-            ] 
-            fieldsACTIONRECORDs: func [
-                actionRecords 
-                /indents ind 
-                /local result val aTagName data tabs tabsinner tmp indentStack index aTagId aTagData ofs
-            ] [
-                result: copy "" 
-                tabs: either indents [head insert/dup copy "" "^-" int] ["^-"] 
-                tabsinner: "" 
-                indentStack: copy [] 
-                while [not tail? actionRecords] [
-                    set [index aTagId aTagData] copy/part actionRecords 3 
-                    actionRecords: skip actionRecords 3 
-                    unless empty? indentStack [
-                        while [
-                            all [
-                                not empty? indentStack 
-                                indentStack/1 <= index
-                            ]
-                        ] [
-                            remove/part tabsinner 4 
-                            remove indentStack
-                        ]
-                    ] 
-                    unless aTagName: select actionids aTagId [
-                        "UnknownTag"
-                    ] 
-                    result: ajoin [result tabs to-hex index tab aTagId " " tabsinner aTagName] 
-                    unless empty? aTagData [
-                        attempt [
-                            append result join " " switch/default aTagName [
-                                "aGetURL" [parse/all as-string aTagData "^@"] 
-                                "aConstantPool" [
-                                    clear ConstantPool 
-                                    parse/all aTagData [
-                                        2 skip 
-                                        any [copy val to "^@" 1 skip (insert tail ConstantPool val)]
-                                    ] 
-                                    mold ConstantPool
-                                ] 
-                                "aPush" [
-                                    vals: make block! [] 
-                                    parse/all aTagData [some [cp | i32 | dec | pstr | logic | reg | null | undefined]] 
-                                    mold vals
-                                ] 
-                                "aDefineFunction" [
-                                    tmp: parseDefineFunc aTagData 
-                                    data: copy "" 
-                                    foreach [sw val] third tmp [
-                                        if val [
-                                            data: ajoin [data lf tabs "                    " tabsinner sw tab mold val]
-                                        ]
-                                    ] 
-                                    insert indentStack (actionRecords/1 + tmp/length) 
-                                    sort indentStack 
-                                    append tabsinner "    " 
-                                    data
-                                ] 
-                                "aDefineFunction2" [
-                                    tmp: parseDefineFunc2 aTagData 
-                                    data: copy "" 
-                                    foreach [sw val] third tmp [
-                                        if val [
-                                            data: ajoin [data lf tabs "                    " tabsinner sw tab mold val]
-                                        ]
-                                    ] 
-                                    insert indentStack (actionRecords/1 + tmp/length) 
-                                    sort indentStack 
-                                    append tabsinner "    " 
-                                    data
-                                ] 
-                                "aIf" [
-                                    ofs: actionRecords/1 + bin-to-si aTagData 
-                                    if ofs > 0 [
-                                        insert indentStack ofs 
-                                        sort indentStack 
-                                        append tabsinner "    "
-                                    ] 
-                                    ajoin ["jumpTo " to-hex ofs]
-                                ] 
-                                "aJump" [
-                                    ofs: actionRecords/1 + bin-to-si aTagData 
-                                    ajoin ["to " to-hex ofs]
-                                ] 
-                                "aStoreRegister" [
-                                    to-integer aTagData
-                                ]
-                            ] [mold aTagData]
-                        ]
-                    ] 
-                    append result lf
-                ] 
-                result
-            ] 
-            actionids: make hash! [
-                #{00} "END of aRecord" 
-                #{04} "aNextFrame" 
-                #{05} "aPrevFrame" 
-                #{06} "aPlay" 
-                #{07} "aStop" 
-                #{08} "aToggleQuality" 
-                #{09} "aStopSounds" 
-                #{81} "aGotoFrame" 
-                #{83} "aGetURL" 
-                #{8A} "aWaitForFrame" 
-                #{8B} "aSetTarget" 
-                #{8C} "aGoToLabel" 
-                #{96} "aPush" 
-                #{17} "aPop" 
-                #{0A} "aAdd" 
-                #{0B} "aSubtract" 
-                #{0C} "aMultiply" 
-                #{0D} "aDivide" 
-                #{0E} "aEquals" 
-                #{0F} "aLess" 
-                #{10} "aAnd" 
-                #{11} "aOr" 
-                #{12} "aNot" 
-                #{13} "aStringEquals" 
-                #{14} "aStringLength" 
-                #{21} "aStringAdd" 
-                #{15} "aStringExtract" 
-                #{29} "aStringLess" 
-                #{31} "aMBStringLength" 
-                #{35} "aMBStringExtract" 
-                #{18} "aToInteger" 
-                #{32} "aCharToAscii" 
-                #{33} "aAsciiToChar" 
-                #{36} "aMBCharToAscii" 
-                #{37} "aMBAsciiToChar" 
-                #{99} "aJump" 
-                #{9D} "aIf" 
-                #{9E} "aCall" 
-                #{1C} "aGetVariable" 
-                #{1D} "aSetVariable" 
-                #{9A} "aGetURL2" 
-                #{9F} "aGotoFrame2" 
-                #{20} "aSetTarget2" 
-                #{22} "aGetProperty" 
-                #{23} "aSetProperty" 
-                #{24} "aCloneSprite" 
-                #{25} "aRemoveSprite" 
-                #{27} "aStartDrag" 
-                #{28} "aEndDrag" 
-                #{8D} "aWaitForFrame2" 
-                #{26} "aTrace" 
-                #{34} "aGetTime" 
-                #{30} "aRandomNumber" 
-                #{3D} "aCallFunction" 
-                #{52} "aCallMethod" 
-                #{88} "aConstantPool" 
-                #{9B} "aDefineFunction" 
-                #{3C} "aDefineLocal" 
-                #{41} "aDefineLocal2" 
-                #{43} "aDefineObject" 
-                #{3A} "aDelete" 
-                #{3B} "aDelete2" 
-                #{46} "aEnumerate" 
-                #{49} "aEquals2" 
-                #{4E} "aGetMember" 
-                #{42} "aInitArray/Object" 
-                #{53} "aNewMethod" 
-                #{40} "aNewObject" 
-                #{4F} "aSetMember" 
-                #{45} "aTargetPath" 
-                #{94} "aWith" 
-                #{4A} "aToNumber" 
-                #{4B} "aToString" 
-                #{44} "aTypeOf" 
-                #{47} "aAdd2" 
-                #{48} "aLess2" 
-                #{3F} "aModulo" 
-                #{60} "aBitAnd" 
-                #{63} "aBitLShift" 
-                #{61} "aBitOr" 
-                #{64} "aBitRShift" 
-                #{65} "aBitURShift" 
-                #{62} "aBitXor" 
-                #{51} "aDecrement" 
-                #{50} "aIncrement" 
-                #{4C} "aPushDuplicate" 
-                #{3E} "aReturn" 
-                #{4D} "aStackSwap" 
-                #{87} "aStoreRegister" 
-                #{54} "aInstanceOf" 
-                #{55} "aEnumerate2" 
-                #{66} "aStrictEqual" 
-                #{67} "aGreater" 
-                #{68} "aStringGreater" 
-                #{69} "aExtends" 
-                #{2A} "aThrow" 
-                #{2B} "aCastOp" 
-                #{2C} "aImplementsOp" 
-                #{8E} "aDefineFunction2" 
-                #{8F} "aTry"
-            ]
-        ] 
-        comment "---- end of include %format/actions.r ----" 
-        fieldsACTIONRECORDs: get in actionFormater 'fieldsACTIONRECORDs 
-        tagFields: make hash! reduce [
-            2 fieldsDefineShape 
-            4 reduce [
-                "ID" 
-                "Depth" 
-                fieldsMATRIX 
-                fieldsCXFORM
-            ] 
-            5 ["ID" "Depth"] 
-            6 ["ID" "JPEGData"] 
-            7 reduce [
-                "ID" 
-                'get 'BUTTONRECORDs 
-                :fieldsACTIONRECORDs
-            ] 
-            8 ["JPEGData"] 
-            10 ["ID" "GlyphShapeTable"] 
-            11 fieldsDefineText 
-            12 :fieldsACTIONRECORDs 
-            13 [
-                "FontID" 
-                "Name" 
-                "Flags" 
-                "CodeTable"
-            ] 
-            14 [
-                "ID" 
-                "Format" 
-                "Rate" 
-                "Size" 
-                "Type" 
-                "SampleCount" 
-                "Data"
-            ] 
-            15 reduce [
-                "ID" 
-                'group fieldsSOUNDINFO
-            ] 
-            17 reduce [
-                "ButtonID" 
-                'group "OverUpToIdle" fieldsStartSound 
-                'group "IdleToOverUp" fieldsStartSound 
-                'group "OverUpToOverDown" fieldsStartSound 
-                'group "OverDownToOverUp" fieldsStartSound
-            ] 
-            18 fieldsSoundStreamHead 
-            19 [
-                get 'SoundStreamBlock
-            ] 
-            20 fieldsDefineBitsLossless 
-            21 ["ID" "JPEGData"] 
-            22 fieldsDefineShape 
-            23 [
-                "ButtonID" 
-                fieldsCXFORM
-            ] 
-            26 reduce [
-                "Depth" 
-                "Move?" 
-                "Character" 
-                fieldsMATRIX 
-                fieldsCXFORM 
-                "Ratio" 
-                "Name" 
-                "ClipDepth" 
-                'group "CLIPACTIONS" [
-                    "reserved" 
-                    "AllEventFlags" 
-                    "Actions"
-                ]
-            ] 
-            28 ["Depth"] 
-            32 fieldsDefineShape 
-            33 fieldsDefineText 
-            34 reduce [
-                "ID" 
-                'get 'BUTTONRECORDs 
-                :fieldsACTIONRECORDs
-            ] 
-            35 ["ID" "JPEGData" "BitmapAlphaData"] 
-            36 fieldsDefineBitsLossless 
-            37 [
-                "ID" 
-                "Bounds" 
-                "WordWrap?" 
-                "Multiline?" 
-                "Password?" 
-                "ReadOnly?" 
-                "Reserved1" 
-                "AutoSize?" 
-                "NoSelect?" 
-                "Border?" 
-                "Reserved2" 
-                "HTML?" 
-                "UseOutlines?" 
-                group "Font" ["FontID" "Height"] 
-                "TextColor" 
-                "MaxLength" 
-                group "Layout" [
-                    "Align" 
-                    "LeftMargin" 
-                    "RightMargin" 
-                    "Indent" 
-                    "Leading"
-                ] 
-                "VariableName" 
-                "InitialText"
-            ] 
-            39 [
-                "ID" 
-                "FrameCount" 
-                get 'SpriteTags
-            ] 
-            43 [readSTRING] 
-            45 fieldsSoundStreamHead 
-            46 [
-                "ID" 
-                "StartBounds" 
-                "EndBounds" 
-                "Offset" 
-                get 'MorphFillStyles 
-                "MorphLineStyles" 
-                "StartEdges" 
-                "EndEdges"
-            ] 
-            48 [
-                "ID" 
-                "Flags" 
-                "LangCode" 
-                "FontName" 
-                "GlyphShapeTable" 
-                "CodeTable" 
-                group "Layout" [
-                    "FontAscent" 
-                    "FontDescent" 
-                    "FontLeading" 
-                    "FontAdvanceTable" 
-                    "FontBoundsTable" 
-                    "KERNINGRECORDs"
-                ]
-            ] 
-            57 [
-                "FromURL" 
-                "Assets"
-            ] 
-            59 reduce [
-                "CharacterID" 
-                :fieldsACTIONRECORDs
-            ] 
-            60 [] 
-            61 [] 
-            62 [] 
-            64 [] 
-            65 [] 
-            66 [] 
-            67 fieldsDefineShape 
-            69 [] 
-            70 reduce [
-                "Depth" 
-                "Move?" 
-                "Character" 
-                fieldsMATRIX 
-                fieldsCXFORM 
-                "Ratio" 
-                "Name" 
-                "ClipDepth" 
-                "Filters" 
-                "Blend" 
-                "BitmapCaching" 
-                'group "CLIPACTIONS" [
-                    "reserved" 
-                    "AllEventFlags" 
-                    "Actions"
-                ]
-            ] 
-            73 [] 
-            74 [] 
-            75 [] 
-            77 ["MetaData"] 
-            78 [
-                "CharID" 
-                "GridRectangle"
-            ] 
-            72 [] 
-            76 ["ID" "frame"] 
-            82 ["Flags" "Name" "ABC decompiled"] 
-            83 fieldsDefineShape 
-            84 [
-                "ID" 
-                "StartBounds" 
-                "EndBounds" 
-                "StartEdgeBounds" 
-                "EndEdgeBounds" 
-                "UsesNonScalingStrokes" 
-                "UsesScalingStrokes" 
-                "Offset" 
-                "MorphFillStyles" 
-                "MorphLineStyles" 
-                "StartEdges" 
-                "EndEdges"
-            ] 
-            86 [
-                "Scenes" 
-                "FrameLabels"
-            ] 
-            87 [] 
-            88 [] 
-            89 reduce [
-                "SoundClassName" 
-                'group fieldsSOUNDINFO
-            ] 
-            90 [
-                "ID" 
-                "DeblockParam" 
-                "JPEGData" 
-                "BitmapAlphaData"
-            ] 
-            91 [
-                "FontID" 
-                "flags" 
-                "FontName" 
-                "FontData"
-            ]
-        ] 
-        convert-ExportAssets: has [result] [
-            result: copy "Assets [^/" 
-            foreach [id name] parse-ExportAssets [
-                append result ajoin [tab id " " mold as-string name lf]
-            ] 
-            append result "]" 
-            result
-        ] 
-        convert-DefineShape: has [shape result fillStyles lineStyles pos st dx dy tmp lineStyle fillStyle0 fillStyle1] [
-            probe shape: parse-DefineShape 
-            fillStyles: shape/4/1 
-            lineStyles: shape/4/2 
-            lineStyle: fillStyle0: fillStyle1: none 
-            pos: 0x0 
-            result: ajoin [
-                "Shape " shape/1 " [^/^-units twips^/" 
-                "^-bounds " shape/2/1 "x" shape/2/3 " " shape/2/2 "x" shape/2/4 lf 
-                either shape/3 [
-                    ajoin [
-                        "^-edge [^/" 
-                        "^-^-bounds " shape/3/1/1 "x" shape/3/1/2 " " shape/3/1/3 "x" shape/3/1/4 
-                        either shape/3/2 ["^-^-UsesNonScalingStrokes^/"] [""] 
-                        either shape/3/2 ["^-^-UsesScalingStrokes^/"] [""] 
-                        "^-]^/"
-                    ]
-                ] [""]
-            ] 
-            parse shape/4/3 [
-                any [
-                    'style set st block! (
-                        if st/2 [
-                            if fillStyle0 <> st/2 [
-                                fillStyle0: st/2 
-                                either tmp: fillStyles/(fillStyle0) [
-                                    append result ajoin [
-                                        "^-fill " 
-                                        switch tmp/1 [0 [reduce ["color" tmp/2]] 
-                                            64 66 [rejoin [
-                                                    "bitmap [" reduce [
-                                                        "id" tmp/2/1 
-                                                        convert-MATRIX tmp/2/2
-                                                    ] 
-                                                    "]"
-                                                ]
-                                            ]
-                                        ] 
-                                        lf
-                                    ]
-                                ] [
-                                    append result "^-fill none^/"
-                                ]
-                            ]
-                        ] 
-                        if st/4 [
-                            if lineStyle <> st/4 [
-                                lineStyle: st/4 
-                                append result ajoin [
-                                    "^-pen " lineStyles/(linestyle) lf
-                                ]
-                            ]
-                        ] 
-                        if st/1 [
-                            pos: as-pair st/1/1 st/1/2
-                        ]
-                    ) 
-                    | 
-                    'line (
-                        append result ajoin ["^-line " pos " "]
-                    ) some [set dx integer! set dy integer! (
-                            pos: pos + as-pair dx dy 
-                            append result ajoin [pos " "]
-                        )] (append result lf) 
-                    | 
-                    'curve (
-                        append result ajoin ["^-curve " pos " "]
-                    ) some [
-                        set dx integer! set dy integer! (
-                            pos: pos + as-pair dx dy 
-                            append result ajoin [pos " "]
-                        )
-                    ] (append result lf)
-                ]
-            ] 
-            append result "^/]" 
-            result
-        ] 
-        convert-PlaceObject2: has [data] [
-            data: parse-PlaceObject2 
-            ajoin [
-                either data/7 [rejoin [as-string data/7 ": "]] [""] 
-                "Place " data/3 " [" 
-                either data/2 ["move "] [""] 
-                either data/1 [join "depth " data/1] [""] 
-                either data/4 [convert-MATRIX data/4] [""] 
-                either data/6 [join " ratio " data/6] [""] 
-                either data/8 [join " clipDepth " data/8] [""] 
-                "]"
-            ]
-        ] 
-        convert-MATRIX: func [m] [
-            ajoin [
-                either m/3 [join " at " to-pair m/3] [""] 
-                either m/1 [join " scale " mold m/1] [""] 
-                either m/2 [join " rotate " mold m/2] [""]
-            ]
-        ] 
-        convert-DefineSprite: has [spr result] [
-            spr: parse-DefineSprite 
-            result: rejoin ["Sprite " spr/1 " [^/"] 
-            foreach tag spr/3 [
-                append result ajoin ["^-" tag/2 lf]
-            ] 
-            append result "]^/" 
-            result
-        ] 
-        comment {---- end of include %parsers/swf-tags-fields.r ----} 
-        comment {
-#### Include: %parsers/basic-datatypes.r
-#### Title:   "SWF basic datatypes parse functions"
-#### Author:  ""
-----} 
-        readMATRIX: does [
-            byteAlign 
-            reduce [
-                either readBitLogic [readPair] [none] 
-                either readBitLogic [readPair] [none] 
-                readSBPair
-            ]
-        ] 
-        writeMATRIX: func [m] [
-            either m/1 [
-                writeBitLogic true 
-                writePair m/1
-            ] [
-                writeBitLogic false
-            ] 
-            either m/2 [
-                writeBitLogic true 
-                writePair m/2
-            ] [
-                writeBitLogic false
-            ] 
-            writeSBPair m/3
-        ] 
-        carryMATRIX: does [
-            alignBuffers 
-            if carryBitLogic [
-                carryPair
-            ] 
-            if carryBitLogic [
-                carryPair
-            ] 
-            carrySBPair 
-            alignBuffers
-        ] 
-        readCXFORM: has [HasAddTerms? HasMultTerms? nbits tmp] [
-            HasAddTerms?: readBitLogic 
-            HasMultTerms?: readBitLogic 
-            nbits: readUB 4 
-            tmp: reduce [
-                either HasMultTerms? [
-                    reduce [
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits
-                    ]
-                ] [none] 
-                either HasAddTerms? [
-                    reduce [
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits
-                    ]
-                ] [none]
-            ] 
-            byteAlign 
-            tmp
-        ] 
-        readCXFORMa: has [HasAddTerms? HasMultTerms? nbits tmp] [
-            HasAddTerms?: readBitLogic 
-            HasMultTerms?: readBitLogic 
-            nbits: readUB 4 
-            tmp: reduce [
-                either HasMultTerms? [
-                    reduce [
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits
-                    ]
-                ] [none] 
-                either HasAddTerms? [
-                    reduce [
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits 
-                        readSB nbits
-                    ]
-                ] [none]
-            ] 
-            byteAlign 
-            tmp
-        ] 
-        comment {---- end of include %parsers/basic-datatypes.r ----} 
-        comment {
-#### Include: %parsers/font-and-text.r
-#### Title:   "SWF font and text parse functions"
-#### Author:  ""
-----} 
-        parse-DefineFont: has [id OffsetTable GlyphShapeTable last-ofs] [
-            reduce [
-                readID 
-                (
-                    OffsetTable: make block! ofs / 2 
-                    loop (ofs / 2) - 1 [
-                        append OffsetTable (readUI16) - ofs
-                    ] 
-                    append OffsetTable length? inBuffer 
-                    GlyphShapeTable: make block! (ofs / 2) 
-                    last-ofs: 0 
-                    foreach ofs OffsetTable [
-                        append GlyphShapeTable readBytes (ofs - last-ofs) 
-                        last-ofs: ofs
-                    ] 
-                    GlyphShapeTable
-                )
-            ]
-        ] 
-        parse-DefineFont2: has [
-            flags OffsetTable NumGlyphs WideOffsets? CodeTableOffset GlyphShapeTable last-ofs
-        ] [
-            reduce [
-                readID 
-                flags: readUI8 
-                readUI8 
-                as-string readBytes readUI8 
-                (
-                    NumGlyphs: readUI16 
-                    WideOffsets?: 8 = (8 and flags) 
-                    loop NumGlyphs [
-                        either WideOffsets? [readUI32] [readUI16]
-                    ] 
-                    either WideOffsets? [readUI32] [readUI16] 
-                    GlyphShapeTable: copy [] 
-                    loop NumGlyphs [
-                        byteAlign 
-                        append/only GlyphShapeTable readSHAPE
-                    ] 
-                    GlyphShapeTable
-                ) 
-                readStringNum (NumGlyphs * either WideOffsets? [4] [2]) 
-                either 128 = (128 and flags) [
-                    reduce [
-                        readSI16 
-                        readSI16 
-                        readSI16 
-                        (
-                            tmp: copy [] 
-                            loop NumGlyphs [append tmp readSI16] 
-                            tmp
-                        ) 
-                        (
-                            clear tmp 
-                            loop NumGlyphs [append tmp readRECT] 
-                            tmp
-                        ) 
-                        (
-                            byteAlign 
-                            readKERNINGRECORDs WideOffsets?
-                        )
-                    ]
-                ] [none]
-            ]
-        ] 
-        parse-DefineFont4: does [
-            reduce [
-                readID 
-                readUI8 
-                as-string readString 
-                readRest
-            ]
-        ] 
-        parse-DefineText: does [
-            reduce [
-                probe readID 
-                readRECT 
-                readMATRIX 
-                readTEXTRECORD (byteAlign readUI8) readUI8
-            ]
-        ] 
-        parse-DefineEditText: has [HasText? HasTextColor? HasMaxLength? HasFont? HasLayout?] [
-            reduce [
-                readID 
-                readRECT 
-                (
-                    byteAlign 
-                    HasText?: readBitLogic 
-                    readBitLogic
-                ) 
-                readBitLogic 
-                readBitLogic 
-                readBitLogic 
-                (
-                    HasTextColor?: readBitLogic 
-                    HasMaxLength?: readBitLogic 
-                    HasFont?: readBitLogic 
-                    readBit
-                ) 
-                readBitLogic 
-                (
-                    HasLayout?: readBitLogic 
-                    readBitLogic
-                ) 
-                readBitLogic 
-                readBit 
-                readBitLogic 
-                readBitLogic 
-                either HasFont? [reduce [readUsedID readUI16]] [none] 
-                either HasTextColor? [readRGBA] [none] 
-                either HasMaxLength? [readUI16] [none] 
-                either HasLayout? [
-                    reduce [
-                        readUI8 
-                        readUI16 
-                        readUI16 
-                        readUI16 
-                        readUI16
-                    ]
-                ] [none] 
-                readString 
-                either HasText? [readString] [none]
-            ]
-        ] 
-        parse-DefineTextFormat: does [
-            readRest
-        ] 
-        readTEXTRECORD: func [GlyphBits AdvanceBits /local records HasFont? HasColor? HasYOffset? HasXOffset?] [
-            records: copy [] 
-            while [readBitLogic] [
-                readUB 3 
-                HasFont?: readBitLogic 
-                HasColor?: readBitLogic 
-                HasYOffset?: readBitLogic 
-                HasXOffset?: readBitLogic 
-                append records reduce [
-                    either HasFont? [readUsedID] [none] 
-                    either HasColor? [either tagId = 11 [readRGB] [readRGBA]] [none] 
-                    either HasXOffset? [readSI16] [none] 
-                    either HasYOffset? [readSI16] [none] 
-                    either HasFont? [readUI16] [none] 
-                    readGLYPHENTRY GlyphBits AdvanceBits
-                ] 
-                byteAlign
-            ] 
-            records
-        ] 
-        readGLYPHENTRY: func [GlyphBits AdvanceBits /local glyphs] [
-            glyphs: copy [] 
-            loop readUI8 [
-                insert tail glyphs reduce [
-                    readUB GlyphBits 
-                    readSB AdvanceBits
-                ]
-            ] 
-            glyphs
-        ] 
-        readKERNINGRECORDs: func [wide? /local result] [
-            result: copy [] 
-            either wide? [
-                loop readUI16 [
-                    insert tail result reduce [
-                        readUI16 
-                        readUI16 
-                        readSI16
-                    ]
-                ]
-            ] [
-                loop readUI16 [
-                    insert tail result reduce [
-                        readUI8 
-                        readUI8 
-                        readSI16
-                    ]
-                ]
-            ] 
-            result
-        ] 
-        parse-DefineFontInfo: has [flags] [
-            reduce [
-                readUsedID 
-                as-string readBytes readUI8 
-                readUI8 
-                readRest
-            ]
-        ] 
-        parse-DefineFontInfo2: has [flags] [
-            reduce [
-                readUsedID 
-                as-string readBytes readUI8 
-                readUI8 
-                readUI8 
-                readRest
-            ]
-        ] 
-        parse-DefineAlignZones: does [reduce [
-                readUsedID 
-                readUB 2 
-                readALIGNZONERECORDs
-            ]] 
-        readALIGNZONERECORDs: has [records numZoneData zoneData] [
-            records: copy [] 
-            while [not tail? inBuffer] [
-                repend/only records [
-                    (
-                        numZoneData: readUI8 
-                        zoneData: make block! numZoneData 
-                        loop numZoneData [
-                            insert tail zoneData readUI32
-                        ] 
-                        zoneData
-                    ) 
-                    readUI8
-                ]
-            ] 
-            records
-        ] 
-        parse-CSMTextSettings: does [reduce [
-                readUsedID 
-                readUB 2 
-                readUB 3 
-                readUB 3 
-                readUI32 
-                readUI32 
-                readUI8
-            ]] 
-        parse-DefineFontName: does [reduce [
-                readUsedID 
-                readString 
-                readString
-            ]] 
-        comment "---- end of include %parsers/font-and-text.r ----" 
-        comment {
-#### Include: %parsers/shape.r
-#### Title:   "SWF shape parse functions"
-#### Author:  ""
-----} 
-        readFILLSTYLEARRAY: has [FillStyles] [
-            byteAlign 
-            FillStyles: copy [] 
-            loop readCount [
-                append/only FillStyles readFILLSTYLE
-            ] 
-            FillStyles
-        ] 
-        readFILLSTYLE: has [type] [
-            byteAlign 
-            reduce [
-                type: readUI8 
-                case [
-                    type = 0 [
-                        case [
-                            find [46 84] tagId [
-                                reduce [readRGBA readRGBA]
-                            ] 
-                            tagId >= 32 [readRGBA] 
-                            true [readRGB]
-                        ]
-                    ] 
-                    any [
-                        type = 16 
-                        type = 18 
-                        type = 19
-                    ] [
-                        reduce either find [46 84] tagId [
-                            [readMATRIX readMATRIX readGRADIENT type]
-                        ] [
-                            [readMATRIX readGRADIENT type]
-                        ]
-                    ] 
-                    type >= 64 [
-                        reduce either find [46 84] tagId [
-                            [readUsedID readMATRIX readMATRIX]
-                        ] [
-                            [readUsedID readMATRIX]
-                        ]
-                    ]
-                ]
-            ]
-        ] 
-        readLINESTYLEARRAY: has [LineStyles] [
-            LineStyles: copy [] 
-            byteAlign 
-            loop readCount [
-                append/only LineStyles readLINESTYLE
-            ] 
-            LineStyles
-        ] 
-        readLINESTYLE: has [flags] [
-            byteAlign 
-            reduce case [
-                tagId = 46 [
-                    [
-                        readUI16 
-                        readUI16 
-                        readRGBA 
-                        readRGBA
-                    ]
-                ] 
-                any [tagId = 67 tagId = 83] [
-                    [
-                        readUI16 
-                        reduce [
-                            readUB 2 
-                            joinStyle: readUB 2 
-                            hasFill?: readBitLogic 
-                            readBitLogic 
-                            readBitLogic 
-                            readBitLogic 
-                            (
-                                skipBits 5 
-                                readBitLogic
-                            ) 
-                            readUB 2
-                        ] 
-                        either joinStyle = 2 [readUI16] [none] 
-                        either hasFill? [print "HASFILL" readFILLSTYLE] [readRGBA]
-                    ]
-                ] 
-                tagId = 84 [
-                    [
-                        readUI16 
-                        readUI16 
-                        reduce [
-                            readUB 2 
-                            joinStyle: readUB 2 
-                            hasFill?: readBitLogic 
-                            readBitLogic 
-                            readBitLogic 
-                            readBitLogic 
-                            (
-                                skipBits 5 
-                                readBitLogic
-                            ) 
-                            readUB 2
-                        ] 
-                        either joinStyle = 2 [readUI16] [none] 
-                        either hasFill? [readFILLSTYLE] [reduce [readRGBA readRGBA]]
-                    ]
-                ] 
-                true [
-                    [
-                        readUI16 
-                        either tagId = 32 [readRGBA] [readRGB]
-                    ]
-                ]
-            ]
-        ] 
-        readGRADIENT: func [type /local gradients] [
-            byteAlign 
-            reduce [
-                readUB 2 
-                readUB 2 
-                (
-                    gradients: copy [] 
-                    loop readUB 4 [
-                        insert tail gradients readGRADRECORD
-                    ] 
-                    gradients
-                ) 
-                either all [type = 19 tagId = 83] [readSShortFixed] [none]
-            ]
-        ] 
-        readGRADRECORD: has [] [
-            reduce [
-                readUI8 
-                either tagId >= 32 [readRGBA] [readRGB]
-            ]
-        ] 
-        readSHAPERECORD: func [numFillBits numLineBits /local nBits lineType states records] [
-            records: copy [] 
-            lineType: none 
-            byteAlign 
-            until [
-                either readBitLogic [
-                    either readBitLogic [
-                        if lineType <> 'line [insert tail records lineType: 'line] 
-                        nBits: 2 + readUB 4 
-                        insert tail records reduce either readBitLogic [
-                            [
-                                readSB nBits 
-                                readSB nBits
-                            ]
-                        ] [
-                            either readBitLogic [
-                                [0 readSB nBits]
-                            ] [
-                                [readSB nBits 0]
-                            ]
-                        ]
-                    ] [
-                        if lineType <> 'curve [insert tail records lineType: 'curve] 
-                        nBits: 2 + readUB 4 
-                        insert tail records reduce [
-                            readSB nBits 
-                            readSB nBits 
-                            readSB nBits 
-                            readSB nBits
-                        ]
-                    ] 
-                    false
-                ] [
-                    states: readUB 5 
-                    either states = 0 [
-                        true
-                    ] [
-                        lineType: none 
-                        insert tail records 'style 
-                        insert/only tail records reduce [
-                            either 0 < (states and 1) [readSBPair] [none] 
-                            either 0 < (states and 2) [readUB numFillBits] [none] 
-                            either 0 < (states and 4) [readUB numFillBits] [none] 
-                            either 0 < (states and 8) [readUB numLineBits] [none] 
-                            either 0 < (states and 16) [
-                                reduce [
-                                    readFILLSTYLEARRAY 
-                                    readLINESTYLEARRAY 
-                                    numFillBits: readUB 4 
-                                    numLineBits: readUB 4
-                                ]
-                            ] [none]
-                        ] 
-                        false
-                    ]
-                ]
-            ] 
-            records
-        ] 
-        readSHAPE: does [
-            readSHAPERECORD (byteAlign readUB 4) readUB 4
-        ] 
-        readSHAPEWITHSTYLES: does [
-            byteAlign 
-            reduce [
-                readFILLSTYLEARRAY 
-                readLINESTYLEARRAY 
-                readSHAPERECORD (byteAlign readUB 4) readUB 4
-            ]
-        ] 
-        parse-DefineShape: does [
-            reduce [
-                readID 
-                readRect 
-                either tagId >= 67 [
-                    reduce [
-                        readRect 
-                        (
-                            readUB 6 
-                            readBitLogic
-                        ) 
-                        readBitLogic
-                    ]
-                ] [none] 
-                readSHAPEWITHSTYLES
-            ]
-        ] 
-        comment "---- end of include %parsers/shape.r ----" 
-        comment {
-#### Include: %parsers/button.r
-#### Title:   "SWF buttons parse functions"
-#### Author:  ""
-----} 
-        readBUTTONRECORDs: has [records reserved states hasBlendMode hasFilterList] [
-            records: copy [] 
-            until [
-                byteAlign 
-                reserved: readUB 2 
-                hasBlendMode: readBitLogic 
-                hasFilterList: readBitLogic 
-                states: readUB 4 
-                either all [reserved = 0 states = 0] [true] [
-                    repend/only records [
-                        states 
-                        readUsedID 
-                        readUI16 
-                        readMATRIX 
-                        either tagId = 34 [readCXFORMa] [none] 
-                        either all [hasFilterList tagId = 34] [readFILTERS] [none] 
-                        either all [hasBlendMode tagId = 34] [readUI8] [none]
-                    ] 
-                    false
-                ]
-            ] 
-            records
-        ] 
-        readBUTTONCONDACTIONs: has [actions CondActionSize] [
-            actions: copy [] 
-            byteAlign 
-            until [
-                either any [
-                    tail? inBuffer 0 = CondActionSize: readUI16
-                ] [true] [
-                    repend actions [
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readBitLogic 
-                        readUB 7 
-                        readBitLogic 
-                        readACTIONRECORDs
-                    ] 
-                    false
-                ]
-            ] 
-            actions
-        ] 
-        parse-DefineButton: does [
-            reduce [
-                readID 
-                readBUTTONRECORDs 
-                readACTIONRECORDs
-            ]
-        ] 
-        parse-DefineButton2: does [
-            reduce [
-                readID 
-                (
-                    readUI8 
-                    readUI16 
-                    readBUTTONRECORDs
-                ) 
-                readBUTTONCONDACTIONs
-            ]
-        ] 
-        parse-DefineButtonCxform: does [
-            reduce [
-                readUsedID 
-                readCXFORM
-            ]
-        ] 
-        parse-DefineButtonSound: has [id] [
-            reduce [
-                readUsedID 
-                either 0 < id: readUsedID [reduce [id readSOUNDINFO]] [none] 
-                either 0 < id: readUsedID [reduce [id readSOUNDINFO]] [none] 
-                either 0 < id: readUsedID [reduce [id readSOUNDINFO]] [none] 
-                either 0 < id: readUsedID [reduce [id readSOUNDINFO]] [none]
-            ]
-        ] 
-        comment "---- end of include %parsers/button.r ----" 
-        comment {
-#### Include: %parsers/sprite.r
-#### Title:   "SWF sprites and movie clip related parse functions"
-#### Author:  ""
-----} 
-        parse-DefineSprite: has [] [
-            reduce [
-                readID 
-                readUI16 
-                readSWFTAGs inBuffer
-            ]
-        ] 
-        parse-PlaceObject: does [
-            reduce [
-                readUsedID 
-                readUI16 
-                readMATRIX 
-                either tail? inBuffer [none] [readCXFORM]
-            ]
-        ] 
-        parse-PlaceObject2: has [flags] [reduce [
-                (
-                    flags: readUI8 
-                    readUI16
-                ) 
-                isSetBit? flags 1 
-                either isSetBit? flags 2 [readUsedID] [none] 
-                either isSetBit? flags 3 [readMATRIX] [none] 
-                either isSetBit? flags 4 [byteAlign readCXFORMa] [none] 
-                either isSetBit? flags 5 [byteAlign readUI16] [none] 
-                either isSetBit? flags 6 [byteAlign readString] [none] 
-                either isSetBit? flags 7 [byteAlign readUI16] [none] 
-                either isSetBit? flags 8 [byteAlign readCLIPACTIONS] [none]
-            ]] 
-        parse-PlaceObject3: has [flags flags2] [reduce [
-                (
-                    flags: readUI8 
-                    flags2: readUI8 
-                    readUI16
-                ) 
-                (
-                    isSetBit? flags 1
-                ) 
-                either isSetBit? flags 2 [readUsedID] [none] 
-                either isSetBit? flags 3 [readMATRIX] [none] 
-                either isSetBit? flags 4 [byteAlign readCXFORMa] [none] 
-                either isSetBit? flags 5 [byteAlign readUI16] [none] 
-                either isSetBit? flags 6 [byteAlign readString] [none] 
-                either isSetBit? flags 7 [byteAlign readUI16] [none] 
-                either isSetBit? flags2 1 [readFILTERS] [none] 
-                either isSetBit? flags2 2 [readUI8] [none] 
-                either isSetBit? flags2 3 [readUI8] [none] 
-                either isSetBit? flags 8 [readCLIPACTIONS] [none]
-            ]] 
-        readFILTERS: has [filters type columns rows] [
-            filters: copy [] 
-            loop readUI8 [
-                byteAlign 
-                repend filters [
-                    type: readUI8 
-                    reduce case [
-                        type = 1 [
-                            [
-                                readULongFixed 
-                                readULongFixed 
-                                readUB 5
-                            ]
-                        ] 
-                        find [0 2 3] type [
-                            inBuffer 
-                            [
-                                readRGBA 
-                                readSLongFixed 
-                                readSLongFixed 
-                                either type <> 2 [
-                                    reduce [
-                                        readSLongFixed 
-                                        readSLongFixed
-                                    ]
-                                ] [none] 
-                                readSShortFixed 
-                                readBitLogic 
-                                readBitLogic 
-                                readBitLogic 
-                                readBitLogic
-                            ]
-                        ] 
-                        find [4 7] type [
-                            count: readUI8 
-                            [
-                                readRGBAArray count 
-                                readUI8Array count 
-                                readSLongFixed 
-                                readSLongFixed 
-                                readSLongFixed 
-                                readSLongFixed 
-                                readSShortFixed 
-                                readBitLogic 
-                                readBitLogic 
-                                readBitLogic 
-                                (skipBits 1 
-                                    readUB 4
-                                )
-                            ]
-                        ] 
-                        type = 5 [
-                            [
-                                columns: readUI8 
-                                rows: readUI8 
-                                readLongFloat 
-                                readLongFloat 
-                                readLongFloatArray (columns * rows) 
-                                readRGBA 
-                                skipBits 6 
-                                readBitLogic 
-                                readBitLogic
-                            ]
-                        ] 
-                        type = 6 [
-                            readLongFloatArray 20
-                        ]
-                    ]
-                ]
-            ] 
-            filters
-        ] 
-        parse-RemoveObject: does [
-            reduce [
-                readUsedID 
-                readUI16
-            ]
-        ] 
-        parse-RemoveObject2: does [
-            readUI16
-        ] 
-        parse-SWT-CharacterName: does [
-            reduce [
-                readID 
-                readSTRING
-            ]
-        ] 
-        readCLIPACTIONS: does [reduce [
-                readUI16 
-                readUI32 
-                readCLIPACTIONRECORDs
-            ]] 
-        readCLIPACTIONRECORDs: has [records flags] [
-            records: copy [] 
-            until [
-                insert/only tail records reduce [
-                    flags: readUI32 
-                    readUI32 
-                    either isSetBit? flags 10 [readUI8] [none] 
-                    readACTIONRECORDs
-                ] 0 = either swfVersion > 5 [readUI32] [readUI16]
-            ] 
-            records
-        ] 
-        comment "---- end of include %parsers/sprite.r ----" 
-        comment {
-#### Include: %parsers/sound.r
-#### Title:   "SWF sound related parse functions"
-#### Author:  ""
-----} 
-        parse-DefineSound: does [
-            reduce [
-                readID 
-                readUB 4 
-                readUB 2 
-                readBitLogic 
-                readBitLogic 
-                readUI32 
-                readRest
-            ]
-        ] 
-        parse-StartSound: does [
-            reduce [
-                readUsedID 
-                readSOUNDINFO
-            ]
-        ] 
-        parse-StartSound2: does [
-            reduce [
-                as-string readString 
-                readSOUNDINFO
-            ]
-        ] 
-        parse-SoundStreamHead: does [
-            reduce [
-                (readUB 4 none) 
-                readUB 2 
-                readBitLogic 
-                readBitLogic 
-                StreamSoundCompression: readUB 4 
-                readUB 2 
-                readBitLogic 
-                readBitLogic 
-                readUI16 
-                either StreamSoundCompression = 2 [readSI16] [none]
-            ]
-        ] 
-        parse-SoundStreamBlock: does [
-            reduce [
-                switch/default StreamSoundCompression [
-                    2 [readMP3STREAMSOUNDDATA]
-                ] [readRest]
-            ]
-        ] 
-        readMP3STREAMSOUNDDATA: does [
-            reduce [
-                StreamSoundCompression 
-                readUI16 
-                readMP3SOUNDDATA
-            ]
-        ] 
-        readMP3SOUNDDATA: does [
-            reduce [
-                readSI16 
-                readMP3FRAMEs
-            ]
-        ] 
-        readMP3FRAMEs: has [frames MpegVersion Layer Bitrate SamplingRate sampleDataSize] [
-            frames: copy [] 
-            while [not tail? inBuffer] [
-                repend frames [
-                    readUB 11 
-                    MpegVersion: readUB 2 
-                    Layer: readUB 2 
-                    readBitLogic 
-                    (
-                        Bitrate: readUB 4 
-                        SamplingRate: readUB 2 
-                        PaddingBit: readBit 
-                        readBit 
-                        readUB 2
-                    ) 
-                    readUB 2 
-                    readBitLogic 
-                    readBitLogic 
-                    readUB 2 
-                    Bitrate: transMP3Bitrate Layer MpegVersion Bitrate 
-                    SamplingRate: transMP3SamplingRate MpegVersion SamplingRate 
-                    (
-                        sampleDataSize: to integer! either MpegVersion = 3 [
-                            (((either Layer = 3 [48000] [144000]) * Bitrate) / SamplingRate) + PaddingBit - 4
-                        ] [
-                            (((either Layer = 3 [24000] [72000]) * Bitrate) / SamplingRate) + PaddingBit - 4
-                        ] 
-                        readBytes sampleDataSize
-                    )
-                ]
-            ] 
-            frames
-        ] 
-        transMP3Bitrate: func [Layer MpegVersion Bitrate] [
-            pick (switch Layer either MpegVersion = 3 [[
-                        3 [[32 64 96 128 160 192 224 256 288 320 352 384 416 448]] 
-                        2 [[32 48 56 64 80 96 112 128 160 192 224 256 320 384]] 1 [[32 40 48 56 64 80 96 112 128 160 192 224 256 320]]
-                    ]] [[
-                        3 [[32 48 56 64 80 96 112 128 144 160 176 192 224 256]] 
-                        2 [[8 16 24 32 40 48 56 64 80 96 112 128 144 160]] 1 [[8 16 24 32 40 48 56 64 80 96 112 128 144 160]]
-                    ]]) Bitrate
-        ] 
-        transMP3SamplingRate: func [MpegVersion SamplingRate] [
-            pick switch MpegVersion [
-                3 [[44100 48000 32000 "--"]] 
-                2 [[22050 24000 16000 "--"]] 0 [[11025 12000 8000 "--"]]
-            ] (1 + SamplingRate)
-        ] 
-        readSOUNDINFO: has [HasEnvelope? HasLoops? HasOutPoint? HasInPoint?] [
-            reduce [
-                (readUB 2 none) 
-                readBitLogic 
-                readBitLogic 
-                (
-                    HasEnvelope?: readBitLogic 
-                    HasLoops?: readBitLogic 
-                    HasOutPoint?: readBitLogic 
-                    HasInPoint?: readBitLogic 
-                    either HasInPoint? [readUI32] [none]
-                ) 
-                either HasOutPoint? [readUI32] [none] 
-                either HasLoops? [readUI16] [none] 
-                either HasEnvelope? [readSOUNDENVELOPE] [none]
-            ]
-        ] 
-        readSOUNDENVELOPE: does [
-            result: copy [] 
-            loop readUI8 [
-                insert tail result reduce [
-                    readUI32 
-                    readUI16 
-                    readUI16
-                ]
-            ] 
-            result
-        ] 
-        comment "---- end of include %parsers/sound.r ----" 
-        comment {
-#### Include: %parsers/bitmap.r
-#### Title:   "SWF bitmaps parse functions"
-#### Author:  ""
-----} 
-        parse-DefineBitsLossless: has [id BitmapFormat BitmapWidth BitmapHeight argb a rgb ZlibBitmapData] [
-            reduce [
-                id: readID 
-                BitmapFormat: readUI8 
-                BitmapWidth: readUI16 
-                BitmapHeight: readUI16 
-                either BitmapFormat = 3 [readUI8] [none] 
-                (
-                    ZlibBitmapData: readRest 
-                    ZlibBitmapData
-                )
-            ]
-        ] 
-        parse-DefineBits: does [
-            reduce [
-                readID 
-                readRest
-            ]
-        ] 
-        parse-JPEGTables: does [
-            readRest
-        ] 
-        parse-DefineBitsJPEG2: does [
-            reduce [
-                readID 
-                readRest
-            ]
-        ] 
-        parse-DefineBitsJPEG3: does [
-            reduce [
-                readID 
-                readBytes readUI32 
-                readRest
-            ]
-        ] 
-        parse-DefineBitsJPEG4: has [AlphaDataOffset] [
-            reduce [
-                readID 
-                (
-                    AlphaDataOffset: readUI32 
-                    readUI16
-                ) 
-                readBytes AlphaDataOffset 
-                readRest
-            ]
-        ] 
-        comment "---- end of include %parsers/bitmap.r ----" 
-        comment {
-#### Include: %parsers/actions.r
-#### Title:   "SWF actions related parse functions"
-#### Author:  ""
-----} 
-        parse-DoAction: 
-        readACTIONRECORDs: has [records Length ActionCode i] [
-            records: copy [] 
-            until [
-                i: index? inBuffer 
-                insert tail records reduce [
-                    (i - 1) 
-                    ActionCode: readByte 
-                    readBytes either (to integer! actionCode) > 127 [readUI16] [0]
-                ] 
-                ActionCode = #{00}
-            ] 
-            new-line/skip records true 3 
-            records
-        ] 
-        parse-DoInitAction: does [reduce [
-                readUsedID 
-                readACTIONRECORDs
-            ]] 
-        comment {^-
-^-parse-DoABC: has[abc][
-^-^-write/binary join rswf-root-dir %tmp.abc abc: readRest
-^-^-if error? try [
-^-^-^-call/wait rejoin [ to-local-file rswf-root-dir/bin/abcdump.exe " " to-local-file rswf-root-dir/tmp.abc]
-^-^-^-return read rswf-root-dir/tmp.abc.il
-^-^-][ abc ]
-^-]
-^-
-^-parse-DoABC2: does [reduce [
-^-^-readSI32   ;skip
-^-^-as-string readString ;frame
-^-^-parse-DoABC
-^-]]
-^-
-^-parse-SymbolClass: has[classes][
-^-^-classes: copy []
-^-^-loop readUI16 [
-^-^-^-insert tail classes reduce [
-^-^-^-^-readUsedID ;id
-^-^-^-^-as-string readString ;frame
-^-^-^-]
-^-^-]
-^-^-classes
-^-]
-} 
-        readNamespace: does [
-            reduce [
-                select [
-                    #{08} Namespace 
-                    #{16} PackageNamespace 
-                    #{17} PackageInternalNs 
-                    #{18} ProtectedNamespace 
-                    #{19} ExplicitNamespace 
-                    #{1A} StaticProtectedNs 
-                    #{05} PrivateNs
-                ] readByte 
-                ABC/Cpool/string/(readUI30)
-            ]
-        ] 
-        readNSset: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [
-                append result ABC/Cpool/namespace/(readUI30)
-            ] 
-            new-line/skip result true 2 
-            result
-        ] 
-        readMultiname: funct [] [
-            reduce switch/default kind: readByte [
-                #{07} [['QName ABC/Cpool/namespace/(readUI30) ABC/Cpool/string/(readUI30)]] 
-                #{0D} [['QNameA ABC/Cpool/namespace/(readUI30) ABC/Cpool/string/(readUI30)]] 
-                #{0F} [['RTQName ABC/Cpool/string/(readUI30)]] 
-                #{10} [['RTQNameA ABC/Cpool/string/(readUI30)]] 
-                #{11} [['RTQNameL]] 
-                #{12} [['RTQNameLA]] 
-                #{09} [['Multiname ABC/Cpool/string/(readUI30) ABC/Cpool/nsset/(readUI30)]] 
-                #{0E} [['MultinameA ABC/Cpool/string/(readUI30) ABC/Cpool/nsset/(readUI30)]] 
-                #{1B} [['MultinameL ABC/Cpool/nsset/(readUI30)]] 
-                #{1C} [['MultinameLA ABC/Cpool/nsset/(readUI30)]] 
-                #{1D} [['GenericName ABC/Cpool/multiname/(readUI30) readGenericName]]
-            ] [ask ["UNKNOWN multiname kind:" mold kind]]
-        ] 
-        readGenericName: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [
-                append result ABC/Cpool/multiname/(readUI30)
-            ] 
-            result
-        ] 
-        readParamTypes: funct [count] [
-            result: make block! count 
-            loop count [
-                append result readUI30
-            ] 
-            result
-        ] 
-        readParamNames: funct [count] [
-            result: make block! count 
-            loop count [
-                append result readUI30
-            ] 
-            result
-        ] 
-        readOptions: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [
-                append/only result reduce [
-                    readUI30 
-                    select [
-                        #{03} Int 
-                        #{04} UInt 
-                        #{06} Double 
-                        #{01} Utf8 
-                        #{0B} True 
-                        #{0A} False 
-                        #{0C} Null 
-                        #{00} Undefined 
-                        #{08} Namespace 
-                        #{16} PackageNamespace 
-                        #{17} PackageInternalNs 
-                        #{18} ProtectedNamespace 
-                        #{19} ExplicitNamespace 
-                        #{1A} StaticProtectedNs 
-                        #{05} PrivateNs
-                    ] readByte
-                ]
-            ] 
-            result
-        ] 
-        readMethod: func [num /local param_count] [
-            param_count: readUI30 
-            context [
-                method: num 
-                return_type: readUI30 
-                param_type: readParamTypes param_count 
-                name: ABC/Cpool/string/(readUI30) 
-                flags: readByte 
-                options: either (flags and #{08}) = #{08} [readOptions] [none] 
-                param_names: either (flags and #{80}) = #{80} [readParamNames param_count] [none]
-            ]
-        ] 
-        readItemsArray: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [
-                append/only result reduce [
-                    ABC/Cpool/string/(readUI30) 
-                    ABC/Cpool/string/(readUI30)
-                ]
-            ] 
-            new-line/all result true
-        ] 
-        readMetadata: funct [] [
-            new-line/skip reduce [
-                ABC/Cpool/string/(readUI30) 
-                readItemsArray
-            ] true 2
-        ] 
-        readNamespaceArray: func [/local count result] [
-            count: readUI30 - 1 
-            either count >= 0 [
-                result: make block! count 
-                loop count [append/only result readNamespace] 
-                result
-            ] [copy []]
-        ] 
-        readNSsetArray: func [/local count result] [
-            count: readUI30 - 1 
-            either count >= 0 [
-                result: make block! count 
-                loop count [append/only result readNSset] 
-                result
-            ] [copy []]
-        ] 
-        readStringInfoArray: func [/local count result] [
-            count: readUI30 - 1 
-            either count >= 0 [
-                result: make block! count 
-                loop count [append/only result readStringInfo] 
-                result
-            ] [copy []]
-        ] 
-        readMultinameArray: funct [] [
-            count: readUI30 - 1 
-            either count >= 0 [
-                ABC/Cpool/multiname: make block! count 
-                loop count [append/only ABC/Cpool/multiname readMultiname] 
-                ABC/Cpool/multiname
-            ] [ABC/Cpool/multiname: copy []]
-        ] 
-        readMethodArray: funct [] [
-            count: readUI30 
-            either count >= 0 [
-                result: make block! count 
-                repeat i count [append/only result readMethod i] 
-                result
-            ] [copy []]
-        ] 
-        readMetadataArray: funct [] [
-            count: readUI30 
-            either count >= 0 [
-                result: make block! count 
-                loop count [append/only result readMetadata] 
-                result
-            ] [copy []]
-        ] 
-        readInstanceArray: funct [count] [
-            result: make block! count 
-            loop count [append result readInstance] 
-            result
-        ] 
-        readClassArray: funct [count] [
-            result: make block! count 
-            loop count [append/only result readClass] 
-            result
-        ] 
-        readScriptArray: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [append/only result readScript] 
-            result
-        ] 
-        readMethodBodyArray: funct [] [
-            count: readUI30 
-            result: make block! count 
-            loop count [append/only result readMethodBody] 
-            result
-        ] 
-        readTrait: has [vindex tmp count] [
-            context [
-                name: ABC/Cpool/multiname/(readUI30) 
-                kind: (tmp: readUI8 tmp and 15) 
-                atts: (tmp and 240) 
-                data: (
-                    reduce switch/default kind [0 6 [
-                            [
-                                select [0 Slot 6 Const] kind 
-                                readUI30 
-                                ABC/Cpool/multiname/(readUI30) 
-                                vindex: readUI30 
-                                either vindex > 0 [
-                                    readUI8
-                                ] [none]
-                            ]
-                        ] 
-                        4 [
-                            [
-                                'Class 
-                                readUI30 
-                                readUI30
-                            ]
-                        ] 
-                        5 [
-                            [
-                                'Function 
-                                readUI30 
-                                readUI30
-                            ]
-                        ] 1 2 3 [
-                            [
-                                select [1 Method 2 Getter 3 Setter] kind 
-                                readUI30 
-                                readUI30
-                            ]
-                        ]
-                    ] [
-                    ]
-                ) 
-                metadata: (
-                    either (atts and 64) = 64 [
-                        count: readUI30 
-                        tmp: make block! count 
-                        loop count [append/only tmp ABC/Metadata/(1 + readUI30)] 
-                        tmp
-                    ] [none]
-                )
-            ]
-        ] 
-        formInstanceFlags: func [flags /local result] [
-            result: make block! 4 
-            if #{01} = (flags and #{01}) [append result 'Sealed] 
-            if #{02} = (flags and #{02}) [append result 'Final] 
-            if #{04} = (flags and #{04}) [append result 'Interface] 
-            if #{08} = (flags and #{08}) [append result 'ProtectedNS] 
-            result
-        ] 
-        readInstance: has [blk count] [
-            context [
-                name: ABC/Cpool/multiname/(readUI30) 
-                super_name: ABC/Cpool/multiname/(readUI30) 
-                flags: formInstanceFlags readByte 
-                protectedNs: either find flags 'ProtectedNS [ABC/Cpool/namespace/(readUI30)] [none] 
-                interface: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readUI30] 
-                    blk
-                ) 
-                iinit: ABC/MethodInfo/(1 + readUI30) 
-                trait: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readTrait] 
-                    blk
-                )
-            ]
-        ] 
-        readClass: has [blk count] [
-            context [
-                cinit: readUI30 
-                trait: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readTrait] 
-                    blk
-                )
-            ]
-        ] 
-        readScript: has [blk count] [
-            context [
-                init: ABC/MethodInfo/(1 + readUI30) 
-                trait: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readTrait] 
-                    blk
-                )
-            ]
-        ] 
-        readException: does [
-            reduce [
-                readUI30 
-                readUI30 
-                readUI30 
-                readUI30 
-                ABC/Cpool/multiname/(readUI30)
-            ]
-        ] 
-        readMethodBody: has [blk count] [
-            context [
-                method: ABC/MethodInfo/(1 + readUI30) 
-                max_stack: readUI30 
-                local_count: readUI30 
-                init_scope_depth: readUI30 
-                max_scope_depth: readUI30 
-                code: parse-ABC-code readBytes readUI30 
-                exception: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readException] 
-                    blk
-                ) 
-                trait: (
-                    blk: make block! count: readUI30 
-                    loop count [append blk readTrait] 
-                    blk
-                )
-            ]
-        ] 
-        readLookupOffsets: has [count result] [
-            result: copy [] 
-            loop readUI30 [append result readS24] 
-            result
-        ] 
-        opcode-reader: make stream-io [] 
-        parse-ABC-code: funct [opcodes [binary!]] [
-            result: copy [] 
-            with opcode-reader [
-                setStreamBuffer opcodes 
-                while [not empty? inBuffer] [
-                    op: readByte 
-                    result: insert result new-line reduce [
-                        switch/default op [
-                            #{A0} ['add] 
-                            #{C5} ['add_i] 
-                            #{86} ['astype] 
-                            #{87} ['astypelate] 
-                            #{A8} ['bitand] 
-                            #{97} ['bitnot] 
-                            #{A9} ['bitor] 
-                            #{AA} ['bitxor] 
-                            #{41} ['call] 
-                            #{43} ['callmethod] 
-                            #{46} ['callproperty] 
-                            #{4C} ['callproplex] 
-                            #{4F} ['callpropvoid] 
-                            #{44} ['callstatic] 
-                            #{45} ['callsuper] 
-                            #{4E} ['callsupervoid] 
-                            #{78} ['checkfilter] 
-                            #{80} ['coerce] 
-                            #{82} ['coerce_a] 
-                            #{85} ['coerce_s] 
-                            #{42} ['construct] 
-                            #{4A} ['constructprop] 
-                            #{49} ['constructsuper] 
-                            #{76} ['convert_b] 
-                            #{75} ['convert_d] 
-                            #{73} ['convert_i] 
-                            #{77} ['convert_o] 
-                            #{70} ['convert_s] 
-                            #{74} ['convert_u] 
-                            #{EF} ['debug] 
-                            #{F1} ['debugfile] 
-                            #{F0} ['debugline] 
-                            #{94} ['declocal] 
-                            #{C3} ['declocal_i] 
-                            #{93} ['decrement] 
-                            #{C1} ['decrement_i] 
-                            #{6A} ['deleteproperty] 
-                            #{A3} ['divide] 
-                            #{2A} ['dup] 
-                            #{06} ['dxns] 
-                            #{07} ['dxnslate] 
-                            #{AB} ['equals] 
-                            #{72} ['esc_xattr] 
-                            #{71} ['esc_xelem] 
-                            #{5E} ['findproperty] 
-                            #{5D} ['findpropstrict] 
-                            #{59} ['getdescendants] 
-                            #{64} ['getglobalscope] 
-                            #{6E} ['getglobalslot] 
-                            #{60} ['getlex] 
-                            #{62} ['getlocal] 
-                            #{D0} ['getlocal_0] 
-                            #{D1} ['getlocal_1] 
-                            #{D2} ['getlocal_2] 
-                            #{D3} ['getlocal_3] 
-                            #{66} ['getproperty] 
-                            #{65} ['getscopeobject] 
-                            #{6C} ['getslot] 
-                            #{04} ['getsuper] 
-                            #{B0} ['greaterthan] 
-                            #{AF} ['greaterthan] 
-                            #{1F} ['hasnext] 
-                            #{32} ['hasnext2] 
-                            #{13} ['ifeq] 
-                            #{12} ['iffalse] 
-                            #{18} ['ifge] 
-                            #{17} ['ifgt] 
-                            #{16} ['ifle] 
-                            #{15} ['iflt] 
-                            #{14} ['ifne] 
-                            #{0F} ['ifnge] 
-                            #{0E} ['ifngt] 
-                            #{0D} ['ifnle] 
-                            #{0C} ['ifnlt] 
-                            #{19} ['ifstricteq] 
-                            #{1A} ['ifstrictne] 
-                            #{11} ['iftrue] 
-                            #{B4} ['in] 
-                            #{92} ['inclocal] 
-                            #{C2} ['inclocal_i] 
-                            #{91} ['increment] 
-                            #{C0} ['increment_i] 
-                            #{68} ['initproperty] 
-                            #{B1} ['instanceof] 
-                            #{B2} ['istype] 
-                            #{B3} ['istypelate] 
-                            #{10} ['jump] 
-                            #{08} ['kill] 
-                            #{09} ['label] 
-                            #{AE} ['lessequals] 
-                            #{AD} ['lessthan] 
-                            #{38} ['lf32] 
-                            #{35} ['lf64] 
-                            #{36} ['li16] 
-                            #{37} ['li32] 
-                            #{35} ['li8] 
-                            #{1B} ['lookupswitch] 
-                            #{A5} ['lshift] 
-                            #{A4} ['modulo] 
-                            #{A2} ['multiply] 
-                            #{C7} ['multiply_i] 
-                            #{90} ['negate] 
-                            #{C4} ['negate_i] 
-                            #{57} ['newactivation] 
-                            #{56} ['newarray] 
-                            #{5A} ['newcatch] 
-                            #{58} ['newclass] 
-                            #{40} ['newfunction] 
-                            #{55} ['newobject] 
-                            #{1E} ['nextname] 
-                            #{23} ['nextvalue] 
-                            #{02} ['nop] 
-                            #{96} ['not] 
-                            #{29} ['pop] 
-                            #{1D} ['popscope] 
-                            #{24} ['pushbyte] 
-                            #{2F} ['pushdouble] 
-                            #{27} ['pushfalse] 
-                            #{2D} ['pushint] 
-                            #{31} ['pushnamespace] 
-                            #{28} ['pushnan] 
-                            #{20} ['pushnull] 
-                            #{30} ['pushscope] 
-                            #{25} ['pushshort] 
-                            #{2C} ['pushstring] 
-                            #{26} ['pushtrue] 
-                            #{2E} ['pushuint] 
-                            #{21} ['pushundefined] 
-                            #{1C} ['pushwith] 
-                            #{48} ['returnvalue] 
-                            #{47} ['returnvoid] 
-                            #{A6} ['rshift] 
-                            #{6F} ['setglobalslot] 
-                            #{63} ['setlocal] 
-                            #{D4} ['setlocal_0] 
-                            #{D5} ['setlocal_1] 
-                            #{D6} ['setlocal_2] 
-                            #{D7} ['setlocal_3] 
-                            #{61} ['setproperty] 
-                            #{6D} ['setslot] 
-                            #{05} ['setsuper] 
-                            #{3D} ['sf32] 
-                            #{3D} ['sf32] 
-                            #{3B} ['si16] 
-                            #{3C} ['si32] 
-                            #{3A} ['si8] 
-                            #{AC} ['strictequals] 
-                            #{A1} ['subtract] 
-                            #{C6} ['subtract_i] 
-                            #{2B} ['swap] 
-                            #{50} ['sxi_1] 
-                            #{52} ['sxi_16] 
-                            #{51} ['sxi_8] 
-                            #{03} ['throw] 
-                            #{95} ['typeof] 
-                            #{A7} ['urshift]
-                        ] [ask ["!!!!!unknown op:" mold op] none]
-                    ] true 
-                    if args: switch op [
-                        #{86} [ABC/Cpool/multiname/(readUI30)] 
-                        #{41} [readUI30] 
-                        #{43} [reduce [readUI30 readUI30]] 
-                        #{46} [reduce [ABC/Cpool/multiname/(readUI30) readUI30]] 
-                        #{4C} [reduce [ABC/Cpool/multiname/(readUI30) readUI30]] 
-                        #{4F} [reduce [ABC/Cpool/multiname/(readUI30) readUI30]] 
-                        #{44} [reduce [readUI30 readUI30]] 
-                        #{45} [reduce [readUI30 readUI30]] 
-                        #{4E} [reduce [readUI30 readUI30]] 
-                        #{80} [ABC/Cpool/multiname/(readUI30)] 
-                        #{42} [readUI30] 
-                        #{4A} [reduce [readUI30 readUI30]] 
-                        #{49} [readUI30] 
-                        #{EF} [context [type: readUI8 name: ABC/Cpool/string/(readUI30) register: readUI8 extra: readUI30]] 
-                        #{F1} [ABC/Cpool/string/(readUI30)] 
-                        #{F0} [readUI30] 
-                        #{94} [readUI30] 
-                        #{C3} [readUI30] 
-                        #{6A} [ABC/Cpool/multiname/(readUI30)] 
-                        #{06} [ABC/Cpool/string/(readUI30)] 
-                        #{5E} [ABC/Cpool/multiname/(readUI30)] 
-                        #{5D} [ABC/Cpool/multiname/(readUI30)] 
-                        #{59} [ABC/Cpool/multiname/(readUI30)] 
-                        #{6E} [readUI30] 
-                        #{60} [ABC/Cpool/multiname/(readUI30)] 
-                        #{62} [readUI30] 
-                        #{66} [ABC/Cpool/multiname/(readUI30)] 
-                        #{65} [readUI30] 
-                        #{6C} [readUI30] 
-                        #{04} [ABC/Cpool/multiname/(readUI30)] 
-                        #{32} [reduce [readUI30 readUI30]] 
-                        #{13} [readS24] 
-                        #{12} [readS24] 
-                        #{18} [readS24] 
-                        #{17} [readS24] 
-                        #{16} [readS24] 
-                        #{15} [readS24] 
-                        #{14} [readS24] 
-                        #{0F} [readS24] 
-                        #{0E} [readS24] 
-                        #{0D} [readS24] 
-                        #{0C} [readS24] 
-                        #{19} [readS24] 
-                        #{1A} [readS24] 
-                        #{11} [readS24] 
-                        #{92} [readUI30] 
-                        #{C2} [readUI30] 
-                        #{68} [ABC/Cpool/multiname/(readUI30)] 
-                        #{B2} [ABC/Cpool/multiname/(readUI30)] 
-                        #{10} [readS24] 
-                        #{08} [readUI30] 
-                        #{1B} [context [default_offset: readS24 offsets: readLookupOffsets]] 
-                        #{56} [readUI30] 
-                        #{5A} [readUI30] 
-                        #{58} [ABC/ClassInfo/(readUI30)] 
-                        #{40} [ABC/MethodInfo/(readUI30)] 
-                        #{55} [readUI30] 
-                        #{24} [readUI8] 
-                        #{2F} [ABC/Cpool/double/(readUI30)] 
-                        #{2D} [ABC/Cpool/integer/(readUI30)] 
-                        #{31} [ABC/Cpool/namespace/(readUI30)] 
-                        #{25} [readUI30] 
-                        #{2C} [ABC/Cpool/string/(readUI30)] 
-                        #{2E} [ABC/Cpool/integer/(readUI30)] 
-                        #{6F} [readUI30] 
-                        #{63} [readUI30] 
-                        #{61} [ABC/Cpool/multiname/(readUI30)] 
-                        #{6D} [readUI30] 
-                        #{05} [ABC/Cpool/multiname/(readUI30)]
-                    ] [
-                        result: insert/only result args
-                    ]
-                ] 
-                clear head inBuffer
-            ] 
-            head result
-        ] 
-        ABC: context [
-            Version: none 
-            Cpool: context [
-                integer: 
-                uinteger: 
-                double: 
-                string: 
-                namespace: 
-                nsset: 
-                multiname: none
-            ] 
-            MethodInfo: 
-            Metadata: 
-            InstanceInfo: 
-            ClassInfo: 
-            ScriptInfo: 
-            MethodBodies: none
-        ] 
-        parse-DoABC: has [class_count tmp] [
-            write %tmp.abc inBuffer 
-            ABC/Version: reduce [readUI16 readUI16] 
-            ABC/Cpool/integer: (readS32array) 
-            ABC/Cpool/uinteger: (readU32array) 
-            ABC/Cpool/double: (readD64array) 
-            ABC/Cpool/string: (readStringInfoArray) 
-            ABC/Cpool/namespace: (readNamespaceArray) 
-            ABC/Cpool/nsset: (readNSsetArray) 
-            (readMultinameArray) 
-            ABC/MethodInfo: readMethodArray 
-            ABC/Metadata: readMetadataArray 
-            foreach tmp [
-                integer 
-                uinteger 
-                double 
-                string 
-                namespace 
-                nsset 
-                multiname
-            ] [error? try [new-line/all ABC/Cpool/(tmp) true]] 
-            foreach tmp [
-                MethodInfo 
-                Metadata
-            ] [error? try [new-line/all ABC/(tmp) true]] 
-            ABC/InstanceInfo: (
-                class_count: readUI30 
-                readInstanceArray class_count
-            ) 
-            ABC/ClassInfo: readClassArray class_count 
-            ABC/ScriptInfo: readScriptArray 
-            ABC/MethodBodies: readMethodBodyArray 
-            foreach tmp [string namespace nsset multiname] [
-                new-line/all ABC/Cpool/(tmp) true
-            ] 
-            foreach tmp [
-                MethodInfo 
-                InstanceInfo 
-                ClassInfo 
-                ScriptInfo 
-                MethodBodies
-            ] [new-line/all ABC/(tmp) true] 
-            print ["DONE ABC" length? inBuffer] 
-            if 0 < length? inBuffer [
-                print "!!!!!!! still data left !!!!!!!!!!" 
-                ask ""
-            ] 
-            ABC
-        ] 
-        parse-DoABC2: does [as-string inBuffer reduce [
-                readSI32 
-                readString 
-                parse-DoABC
-            ]] 
-        parse-SymbolClass: has [symbols] [
-            symbols: copy [] 
-            loop readUI16 [
-                append symbols reduce [
-                    readUsedID 
-                    as-string readString
-                ]
-            ] 
-            symbols
-        ] 
-        comment "---- end of include %parsers/actions.r ----" 
-        comment {
-#### Include: %parsers/morphing.r
-#### Title:   "SWF morphing shapes related parse functions"
-#### Author:  ""
-----} 
-        readMORPHFILLSTYLEARRAY: has [FillStyles] [
-            byteAlign 
-            FillStyles: copy [] 
-            loop readCount [
-                append/only FillStyles readMORHFILLSTYLE
-            ] 
-            FillStyles
-        ] 
-        readMORPHLINESTYLEARRAY: has [LineStyles] [
-            LineStyles: copy [] 
-            loop readCount [
-                append/only LineStyles either tagId = 46 [
-                    reduce [
-                        readUI16 
-                        readUI16 
-                        readRGBA 
-                        readRGBA
-                    ]
-                ] [readMORPHLINESTYLE2]
-            ] 
-            LineStyles
-        ] 
-        readMORPHLINESTYLE2: has [joinStyle hasFill?] [
-            reduce [
-                readUI16 
-                readUI16 
-                reduce [
-                    readUB 2 
-                    joinStyle: readUB 2 
-                    hasFill?: readBitLogic 
-                    readBitLogic 
-                    readBitLogic 
-                    readBitLogic 
-                    (
-                        skipBits 5 
-                        readBitLogic
-                    ) 
-                    readUB 2
-                ] 
-                either joinStyle = 2 [readUI16] [none] 
-                either hasFill? [readFILLSTYLE] [reduce [readRGBA readRGBA]]
-            ]
-        ] 
-        readMORHFILLSTYLE: has [type] [
-            byteAlign 
-            reduce [
-                type: readUI8 
-                reduce case [
-                    type = 0 [
-                        [readRGBA readRGBA]
-                    ] 
-                    any [
-                        type = 16 
-                        type = 18 
-                        type = 19
-                    ] [
-                        [readMATRIX readMATRIX readMORPHGRADIENT type]
-                    ] 
-                    type >= 64 [
-                        [readUsedID readMATRIX readMATRIX]
-                    ]
-                ]
-            ]
-        ] 
-        readMORPHGRADIENT: func [type /local gradients] [
-            byteAlign 
-            gradients: copy [] 
-            loop readUI8 [
-                insert/only tail gradients reduce [
-                    readUI8 
-                    readRGBA 
-                    readUI8 
-                    readRGBA
-                ]
-            ] 
-            gradients
-        ] 
-        parse-DefineMorphShape: does [
-            reduce [
-                readID 
-                readRECT 
-                readRECT 
-                readUI32 
-                readMORPHFILLSTYLEARRAY 
-                readMORPHLINESTYLEARRAY 
-                readSHAPE 
-                readSHAPE
-            ]
-        ] 
-        parse-DefineMorphShape2: does [
-            reduce [
-                readID 
-                readRECT 
-                readRECT 
-                readRECT 
-                readRECT 
-                (
-                    readUB 6 
-                    readBitLogic
-                ) 
-                readBitLogic 
-                readUI32 
-                readMORPHFILLSTYLEARRAY 
-                readMORPHLINESTYLEARRAY 
-                readSHAPE 
-                readSHAPE
-            ]
-        ] 
-        comment "---- end of include %parsers/morphing.r ----" 
-        comment {
-#### Include: %parsers/control-tags.r
-#### Title:   "SWF control tags related parse functions"
-#### Author:  ""
-----} 
-        parse-ExportAssets: has [result] [
-            result: copy [] 
-            loop readUI16 [
-                repend result [readUsedID readSTRING]
-            ] 
-            result
-        ] 
-        parse-ImportAssets: has [result] [reduce [
-                readSTRING 
-                either swfVersion >= 8 [
-                    reduce [
-                        readUI8 
-                        readUI8
-                    ]
-                ] [none] 
-                (
-                    result: copy [] 
-                    loop readUI16 [
-                        repend result [readID readSTRING]
-                    ] 
-                    result
-                )
-            ]] 
-        parse-ImportAssets2: :parse-ImportAssets 
-        parse-EnableDebugger: does [readRest] 
-        parse-EnableDebugger2: does [reduce [
-                readUI16 
-                readRest
-            ]] 
-        parse-ScriptLimits: does [reduce [
-                readUI16 
-                readUI16
-            ]] 
-        parse-SetTabIndex: does [reduce [
-                readUI16 
-                readUI16
-            ]] 
-        parse-FileAttributes: does [
-            print ["...FileAtts:" mold inBuffer] 
-            reduce [
-                readUB 3 
-                readBitLogic 
-                readBitLogic 
-                readBitLogic 
-                readBitLogic 
-                readBitLogic 
-                readUB 24
-            ]
-        ] 
-        parse-DefineBinaryData: does [reduce [
-                readID 
-                readSI32 
-                readRest
-            ]] 
-        parse-DefineScalingGrid: does [reduce [
-                readUsedID 
-                readRECT
-            ]] 
-        parse-DefineSceneAndFrameLabelData: has [scenes frameLabels] [
-            scenes: copy [] 
-            loop readUI8 [
-                insert tail scenes reduce [
-                    readUI30 
-                    as-string readString
-                ]
-            ] 
-            new-line/skip scenes true 2 
-            frameLabels: copy [] 
-            loop readUI8 [
-                insert tail frameLabels reduce [
-                    readUI30 
-                    as-string readString
-                ]
-            ] 
-            new-line/skip frameLabels true 2 
-            reduce [scenes frameLabels]
-        ] 
-        parse-SerialNumber: does [
-            reduce [
-                readSI32 
-                readSI32 
-                readUI8 
-                readUI8 
-                readBytes 8 
-                readBytes 8
-            ]
-        ] 
-        comment "---- end of include %parsers/control-tags.r ----" 
-        comment {
-#### Include: %parsers/swf-importing.r
-#### Title:   "SWF importing"
-#### Author:  ""
-----} 
-        RemoveFilters: [1] 
-        set 'import-swf-tag func [tagId tagData /local err action st st2] [
-            reduce either none? action: select parseActions tagId [
-                form-tag tagId tagData
-            ] [
-                setStreamBuffer tagData 
-                if error? set/any 'err try [
-                    set/any 'result do bind/copy action 'self
-                ] [
-                    print ajoin ["!!! ERROR while importing tag:" select swfTagNames tagId "(" tagId ")"] 
-                    throw err
-                ] 
-                either inBuffer [
-                    form-tag tagId head inBuffer
-                ] [
-                    copy #{}
-                ]
-            ]
-        ] 
-        form-tag: func [
-            "Creates the SWF-TAG" 
-            id [integer!] "Tag ID" 
-            data [binary!] "Tag data block" 
-            /local len
-        ] [
-            either any [
-                62 < len: length? data 
-                find [2 20 34 36 37 48] id
-            ] [
-                rejoin [
-                    int-to-ui16 (63 or (id * 64)) 
-                    int-to-ui32 len 
-                    data
-                ]
-            ] [
-                rejoin [
-                    int-to-ui16 (len or (id * 64)) 
-                    data
-                ]
-            ]
-        ] 
-        get-replacedID: func [id /local tmp] [
-            foreach [oid nid] replaced-ids [
-                if id = oid [
-                    return nid
-                ]
-            ] 
-            id
-        ] 
-        replacedID: func [/ui /local id newid] [
-            id: copy/part inBuffer 2 
-            newid: get-replacedID id 
-            inBuffer: change inBuffer newid 
-            newid
-        ] 
-        changeID: func [/local id new-id idbin newbin] [
-            id: to-integer reverse copy idbin: copy/part inBuffer 2 
-            tag-bin: either find used-ids id [
-                new-id: 1 + (last used-ids) 
-                insert tail used-ids new-id 
-                newbin: int-to-ui16 new-id 
-                repend replaced-ids [idbin newbin] 
-                inBuffer: change inBuffer newbin 
-                new-id
-            ] [
-                insert tail used-ids id 
-                used-ids: sort used-ids 
-                inBuffer: skip inBuffer 2 
-                id
-            ]
-        ] 
-        import-or-reuse: func [
-            "Imports a new tag or uses already existing" 
-            /local idbin sum usedid
-        ] [
-            idbin: copy/part inBuffer 2 
-            sum: checksum/secure skip inBuffer 2 
-            either usedid: select tag-checksums sum [
-                print ["reusing..." mold usedid] 
-                append replaced-ids reduce [idbin usedid] 
-                clear head inBuffer 
-                inBuffer: none
-            ] [
-                repend tag-checksums [sum int-to-ui16 changeID]
-            ]
-        ] 
-        skipMATRIX: does [
-            byteAlign 
-            if readBitLogic [skipPair] 
-            if readBitLogic [skipPair] 
-            skipPair 
-            byteAlign
-        ] 
-        skipGRADIENT: func [type] [
-            byteAlign 
-            skipBits 4 
-            loop readUB 4 [
-                skipUI8 
-                either tagId >= 32 [skipRGBA] [skipRGB]
-            ] 
-            if type = 19 [skipBytes 2]
-        ] 
-        skipCXFORM: has [HasAddTerms? HasMultTerms? nbits] [
-            HasAddTerms?: readBitLogic 
-            HasMultTerms?: readBitLogic 
-            nbits: readUB 4 
-            if HasMultTerms? [skipBits (3 * nbits)] 
-            if HasAddTerms? [skipBits (3 * nbits)]
-        ] 
-        skipCXFORMa: has [HasAddTerms? HasMultTerms? nbits] [
-            HasAddTerms?: readBitLogic 
-            HasMultTerms?: readBitLogic 
-            nbits: readUB 4 
-            if HasMultTerms? [skipBits (4 * nbits)] 
-            if HasAddTerms? [skipBits (4 * nbits)]
-        ] 
-        skipSOUNDINFO: has [HasEnvelope? HasLoops? HasOutPoint? HasInPoint?] [
-            skipBits 4 
-            HasEnvelope?: readBitLogic 
-            HasLoops?: readBitLogic 
-            HasOutPoint?: readBitLogic 
-            HasInPoint?: readBitLogic 
-            if HasInPoint? [skipUI32] 
-            if HasOutPoint? [skipUI32] 
-            if HasLoops? [skipUI16] 
-            if HasEnvelope? [skipBytes (readUI8 * 8)]
-        ] 
-        import-FILLSTYLEARRAY: does [
-            byteAlign 
-            loop readCount [
-                import-FILLSTYLE
-            ]
-        ] 
-        import-MORPHFILLSTYLEARRAY: does [
-            byteAlign 
-            loop readCount [
-                import-MORPHFILLSTYLE
-            ]
-        ] 
-        import-LINESTYLEARRAY: has [flags joinStyle hasFill?] [
-            loop readCount [
-                byteAlign 
-                case [
-                    tagId = 46 [skipBytes 12] 
-                    any [tagId = 67 tagId = 83] [
-                        skipUI16 
-                        skipBits 2 
-                        joinStyle: readUB 2 
-                        hasFill?: readBitLogic 
-                        skipBits 11 
-                        if joinStyle = 2 [skipUI16] 
-                        either hasFill? [import-FILLSTYLE] [skipRGBA]
-                    ] 
-                    tagId = 84 [
-                        skipUI16 
-                        skipUI16 
-                        skipBits 2 
-                        joinStyle: readUB 2 
-                        hasFill?: readBitLogic 
-                        skipBits 11 
-                        if joinStyle = 2 [skipUI16] 
-                        either hasFill? [import-FILLSTYLE] [skipBytes 8]
-                    ] 
-                    true [
-                        skipUI16 
-                        either tagId = 32 [skipRGBA] [skipRGB]
-                    ]
-                ]
-            ]
-        ] 
-        import-MORPHLINESTYLEARRAY: has [flags joinStyle hasFill?] [
-            loop readCount [
-                either tagId = 46 [
-                    skipBytes 12
-                ] [
-                    skipUI16 
-                    skipUI16 
-                    skipBits 2 
-                    joinStyle: readUB 2 
-                    hasFill?: readBitLogic 
-                    skipBits 11 
-                    if joinStyle = 2 [skipUI16] 
-                    either hasFill? [import-FILLSTYLE] [skipBytes 8]
-                ]
-            ]
-        ] 
-        import-FILLSTYLE: has [type] [
-            byteAlign 
-            type: readUI8 
-            case [
-                type = 0 [
-                    case [
-                        find [46 84] tagId [
-                            skipBytes 8
-                        ] 
-                        tagId >= 32 [skipRGBA] 
-                        true [skipRGB]
-                    ]
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    either find [46 84] tagId [
-                        skipMATRIX 
-                        skipMATRIX 
-                        skipGRADIENT type
-                    ] [
-                        skipMATRIX 
-                        skipGRADIENT type
-                    ]
-                ] 
-                type >= 64 [
-                    either find [46 84] tagId [
-                        replacedID 
-                        skipMATRIX 
-                        skipMATRIX
-                    ] [
-                        replacedID 
-                        skipMATRIX
-                    ]
-                ]
-            ]
-        ] 
-        import-MORPHFILLSTYLE: has [type] [
-            type: readUI8 
-            case [
-                type = 0 [
-                    skipBytes 8
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    skipMATRIX 
-                    skipMATRIX 
-                    skipBytes (readUI8 * 10)
-                ] 
-                type >= 64 [
-                    replacedID 
-                    skipMATRIX 
-                    skipMATRIX
-                ]
-            ]
-        ] 
-        import-SHAPERECORD: func [numFillBits numLineBits /local nBits lineType states records] [
-            byteAlign 
-            until [
-                either readBitLogic [
-                    either readBitLogic [
-                        nBits: 2 + readUB 4 
-                        either readBitLogic [
-                            skipBits (2 * nBits)
-                        ] [
-                            skipBits (1 + nBits)
-                        ]
-                    ] [
-                        nBits: 2 + readUB 4 
-                        skipBits (4 * nBits)
-                    ] 
-                    false
-                ] [
-                    states: readUB 5 
-                    either states = 0 [
-                        true
-                    ] [
-                        if 0 < (states and 1) [skipPair] 
-                        if 0 < (states and 2) [skipBits numFillBits] 
-                        if 0 < (states and 4) [skipBits numFillBits] 
-                        if 0 < (states and 8) [skipBits numLineBits] 
-                        if 0 < (states and 16) [
-                            import-FILLSTYLEARRAY 
-                            import-LINESTYLEARRAY 
-                            numFillBits: readUB 4 
-                            numLineBits: readUB 4
-                        ] 
-                        false
-                    ]
-                ]
-            ]
-        ] 
-        import-Shape: has [type] [
-            changeID 
-            skipRect 
-            if tagId = 83 [
-                skipRect 
-                skipByte
-            ] 
-            import-FILLSTYLEARRAY 
-            import-LINESTYLEARRAY 
-            import-SHAPERECORD (byteAlign readUB 4) readUB 4
-        ] 
-        import-DefineButton: does [
-            changeID 
-            import-BUTTONRECORDs
-        ] 
-        import-DefineButton2: does [
-            changeID 
-            skipBytes 3 
-            import-BUTTONRECORDs
-        ] 
-        import-DefineButtonSound: has [id] [
-            replacedID 
-            loop 4 [
-                if #{0000} <> replacedID [skipSOUNDINFO]
-            ]
-        ] 
-        import-BUTTONRECORDs: has [reserved states] [
-            until [
-                byteAlign 
-                reserved: readUB 2 
-                hasBlendMode: readBitLogic 
-                hasFilterList: readBitLogic 
-                states: readUB 4 
-                either all [reserved = 0 states = 0] [true] [
-                    replacedID 
-                    skipUI16 
-                    skipMATRIX 
-                    if tagId = 34 [skipCXFORMa] 
-                    if all [hasFilterList tagId = 34] [readFILTERS] 
-                    if all [hasBlendMode tagId = 34] [skipUI8] 
-                    false
-                ]
-            ]
-        ] 
-        import-PlaceObject2: has [flags1 flags2 atFiltersBufer filters] [
-            flags1: readUI8 
-            atFlags2Buffer: inBuffer 
-            if tagId = 70 [
-                flags2: readUI8
-            ] 
-            either spriteLevel = 0 [
-                last-depth: init-depth + readUI16 
-                change (skip inBuffer -2) int-to-ui16 last-depth
-            ] [skipUI16] 
-            either tagId = 70 [
-                if any [
-                    isSetBit? flags2 4 
-                    all [
-                        isSetBit? flags1 2 
-                        isSetBit? flags2 5
-                    ]
-                ] [
-                    skipString
-                ] 
-                if isSetBit? flags1 2 [replacedID] 
-                if all [
-                    isSetBit? flags2 1 
-                    not empty? RemoveFilters
-                ] [
-                    if isSetBit? flags1 3 [skipMatrix] 
-                    if isSetBit? flags1 4 [skipCXFORMa] 
-                    if isSetBit? flags1 5 [skipUI16] 
-                    if isSetBit? flags1 6 [skipString] 
-                    if isSetBit? flags1 7 [skipUI16] 
-                    atFiltersBufer: inBuffer 
-                    filters: readFILTERS 
-                    if all [1 = filters/1 2 = length? filters] [
-                        remove/part atFiltersBufer ((index? inBuffer) - (index? atFiltersBufer)) 
-                        atFlags2Buffer/1: to-char (flags2 and 254)
-                    ]
-                ]
-            ] [
-                if isSetBit? flags1 2 [replacedID]
-            ]
-        ] 
-        import-DefineText: has [GlyphBits AdvanceBits HasFont? HasColor? HasYOffset? HasXOffset?] [
-            changeID 
-            skipRECT 
-            skipMATRIX 
-            byteAlign 
-            GlyphBits: readUI8 
-            AdvanceBits: readUI8 
-            while [readBitLogic] [
-                skipBits 3 
-                HasFont?: readBitLogic 
-                HasColor?: readBitLogic 
-                HasYOffset?: readBitLogic 
-                HasXOffset?: readBitLogic 
-                if HasFont? [replacedID] 
-                if HasColor? [either tagId = 11 [skipRGB] [skipRGBA]] 
-                if HasXOffset? [skipSI16] 
-                if HasYOffset? [skipSI16] 
-                if HasFont? [skipUI16] 
-                skipBits (readUI8 * (GlyphBits + AdvanceBits)) 
-                byteAlign
-            ]
-        ] 
-        import-DefineEditText: has [HasText? HasTextColor? HasMaxLength? HasFont? HasLayout?] [
-            changeID 
-            skipRECT 
-            HasText?: readBitLogic 
-            skipBits 4 
-            HasTextColor?: readBitLogic 
-            HasMaxLength?: readBitLogic 
-            HasFont?: readBitLogic 
-            skipBits 2 
-            HasLayout?: readBitLogic 
-            byteAlign 
-            if HasFont? [replacedID skipUI16] 
-            if HasTextColor? [skipRGBA] 
-            if HasMaxLength? [skipUI16] 
-            if HasLayout? [skipBytes 9] 
-            skipString 
-            if HasText? [skipString]
-        ] 
-        import-DefineSprite: has [i h] [
-            changeID 
-            skipUI16 
-            i: index? inbuffer 
-            h: copy/part head inBuffer (i - 1) 
-            inBuffer: at join h importSWFTAGs inBuffer i
-        ] 
-        import-DefineMorphShape: does [
-            changeID 
-            skipRECT 
-            skipRECT 
-            skipUI32 
-            import-MORPHFILLSTYLEARRAY 
-            skipBytes (readCount * 12) 
-            import-SHAPERECORD readUB 4 readUB 4 
-            import-SHAPERECORD readUB 4 readUB 4
-        ] 
-        import-DefineMorphShape2: does [
-            changeID 
-            skipRECT 
-            skipRECT 
-            skipRECT 
-            skipRECT 
-            skipBytes 5 
-            import-MORPHFILLSTYLEARRAY 
-            import-MORPHLINESTYLEARRAY 
-            import-SHAPERECORD readUB 4 readUB 4 
-            import-SHAPERECORD readUB 4 readUB 4
-        ] 
-        import-ExportAssets: has [id name] [
-            loop readUI16 [
-                id: replacedID 
-                name: join "imp_" readSTRING 
-                unless find imported-names [name] [
-                    repend imported-names [to-word name to integer! reverse copy id]
-                ]
-            ]
-        ] 
-        import-ImportAssets: does [
-            skipSTRING 
-            if swfVersion >= 8 [
-                skipUI16
-            ] 
-            loop readUI16 [changeID skipSTRING]
-        ] 
-        import-SymbolClass: does [
-            print "symbolClass" 
-            loop readUI16 [replacedID skipSTRING]
-        ] 
-        comment "---- end of include %parsers/swf-importing.r ----" 
-        comment {
-#### Include: %parsers/swf-rescaling.new.r
-#### Title:   "SWF sprites and movie clip related parse functions"
-#### Author:  ""
-----} 
-        [
-            rs/run 'imagick rs/run 'jpg-size 
-            rs/run/fresh 'rswf rs/go 'robotek 
-            rescale-swf %ovladac_olejak.swf run %xxx.swf
-        ] 
-        round2: func [m] [make 1 (m: m + 0.5) - mod m 1.0] 
-        force-image-update?: true 
-        unless value? 'scale-x [scale-x: 1] 
-        unless value? 'scale-y [scale-y: 1] 
-        rswf-rescale-index: 
-        rswf-rescale-index-x: scale-x 
-        rswf-rescale-index-y: scale-y 
-        rsci: func [m] [
-            to integer! 20 * (
-                (m: 2.5E-2 + (
-                        (max rswf-rescale-index-x rswf-rescale-index-y) * m / 20
-                    )) - mod m 5E-2
-            )
-        ] 
-        rsci-x: func [m] [
-            to integer! 20 * ((m: 2.5E-2 + (rswf-rescale-index-x * m / 20)) - mod m 5E-2)
-        ] 
-        rsci-y: func [m] [
-            to integer! 20 * ((m: 2.5E-2 + (rswf-rescale-index-y * m / 20)) - mod m 5E-2)
-        ] 
-        rscr: func [m [block!]] [
-            reduce [
-                rsci-x m/1 
-                rsci-x m/2 
-                rsci-y m/3 
-                rsci-y m/4
-            ]
-        ] 
-        rsc: func [val] [
-            switch/default type?/word val [
-                integer! [rsci-x val] 
-                pair! [as-pair rsci-x val/x rsci-y val/y] 
-                block! [forall val [change val rsc val/1] val: head val]
-            ] [
-                to (type? val) val * rswf-rescale-index-x
-            ]
-        ] 
-        set 'rescale-swf-tag func [tagId tagData /local err action st st2] [
-            reduce either none? action: select parseActions tagId [
-                form-tag tagId tagData
-            ] [
-                setStreamBuffer tagData 
-                clearOutBuffer 
-                if error? set/any 'err try [
-                    set/any 'result do bind/copy action 'self
-                ] [
-                    print ajoin ["!!! ERROR while rescaling tag:" select swfTagNames tagId "(" tagId ")"] 
-                    throw err
-                ] 
-                if tagId = 6 [tagId: 21] 
-                if tagId = 43 [print as-string tagData] 
-                either result [
-                    form-tag tagId result
-                ] [copy #{}]
-            ]
-        ] 
-        rescale-PlaceObject2: has [flags] [
-            writeUI8 flags: readUI8 
-            carryBytes 2 
-            if isSetBit? flags 2 [carryBytes 2] 
-            if isSetBit? flags 3 [rescaleMATRIX] 
-            if isSetBit? flags 4 [carryCXFORMa] 
-            if isSetBit? flags 5 [carryBytes 2] 
-            if isSetBit? flags 6 [carryString] 
-            if isSetBit? flags 7 [carryBytes 2] 
-            carryBytes length? inBuffer 
-            head outBuffer
-        ] 
-        rescale-PlaceObject3: has [flags1] [
-            f: context [
-                HasClipActions?: carryBitLogic 
-                HasClipDepth?: carryBitLogic 
-                HasName?: carryBitLogic 
-                HasRatio?: carryBitLogic 
-                HasColorTransform?: carryBitLogic 
-                HasMatrix?: carryBitLogic 
-                HasCharacter?: carryBitLogic 
-                Move?: carryBitLogic 
-                carryBits 3 
-                HasImage?: carryBitLogic 
-                HasClassName?: carryBitLogic 
-                HasCacheAsBitmap?: carryBitLogic 
-                HasBlendMode?: carryBitLogic 
-                HasFilterList?: carryBitLogic
-            ] 
-            carryBytes 2 
-            if any [
-                f/HasClassName? 
-                all [f/HasImage? f/HasCharacter?]
-            ] [writeString readString] 
-            if f/HasCharacter? [carryBytes 2] 
-            if f/HasMatrix? [rescaleMATRIX] 
-            carryBytes length? inBuffer 
-            comment {
-^-if f/HasColorTransform? [carryCXFORMa]
-^-if f/HasRatio? [carryBytes 2]
-^-if f/HasName?  [writeString readString]
-^-if f/HasClipDepth?  [carryBytes 2]
-^-carryBytes length? inBuffer
-
-^-if f/HasFilterList? [rescaleFILTERLIST]
-^-if f/BlendMode?     [carryBytes 1]
-^-
-^-} 
-            head outBuffer
-        ] 
-        rescale-Shape: has [data tmp] [
-            carryBytes 2 
-            writeRect tmp: rscr readRect 
-            if tagId >= 67 [
-                writeRect rscr readRect 
-                carryBytes 1
-            ] 
-            rescaleFILLSTYLEARRAY 
-            rescaleLINESTYLEARRAY 
-            rescaleSHAPERECORD (alignBuffers carryUB 4) carryUB 4 
-            head outBuffer
-        ] 
-        rescale-DefineMorphShape: has [tmp] [
-            carryBytes 2 
-            writeRect rscr readRect 
-            writeRect rscr readRect 
-            if tagId = 84 [
-                writeRect rscr readRect 
-                writeRect rscr readRect 
-                carryBytes 1
-            ] 
-            tmp: outBuffer 
-            readBytes 4 
-            rescaleMORPHFILLSTYLEARRAY 
-            rescaleLINESTYLEARRAY 
-            rescaleSHAPERECORD (alignBuffers carryUB 4) carryUB 4 
-            alignBuffers 
-            offs: (index? outBuffer) - (index? tmp) 
-            outBuffer: tmp 
-            writeUI32 offs 
-            outBuffer: tail outBuffer 
-            rescaleSHAPERECORD (carryUB 4) carryUB 4 
-            head outBuffer
-        ] 
-        get-image-size-from-tagData: func [data /local tagId md5 file] [
-            tagId: first data 
-            md5: last data 
-            either exists? probe file: rejoin [
-                swfDir %tag tagId %_ md5 
-                either find [20 36] tagId [%.png] [%.jpg]
-            ] [
-                get-image-size file
-            ] [none]
-        ] 
-        combine-files: func [files size into /local tmp png? *wand2 *pixel] [
-            print ["COMBINE to size:" size into] 
-            with ctx-imagick [
-                start 
-                *pixel: NewPixelWand 
-                not zero? MagickNewImage *wand size/x size/y *pixel 
-                *wand2: NewMagickWand 
-                png?: find into %.png 
-                foreach [pos size file] files [
-                    if block? file [parse file [to file! set file 1 skip]] 
-                    if png? [file: replace copy file %.jpg %.png] 
-                    unless all [
-                        not zero? MagickReadImage *wand2 utf8/encode to-local-file file 
-                        tmp: make image! size 
-                        not zero? MagickExportImagePixels *wand2 0 0 size/x size/y "RGBO" 1 address? tmp 
-                        not zero? MagickImportImagePixels *wand pos/x pos/y size/x size/y "RGBO" 1 address? tmp
-                    ] [
-                        errmsg: reform [
-                            Exception/Severity "=" 
-                            ptr-to-string tmp: MagickGetException *wand2 Exception
-                        ] 
-                        MagickRelinquishMemory tmp 
-                        ClearMagickWand *wand2 
-                        DestroyMagickWand *wand2 
-                        ClearPixelWand *pixel 
-                        DestroyPixelWand *pixel 
-                        end 
-                        make error! errmsg
-                    ] 
-                    ClearMagickWand *wand2
-                ] 
-                not zero? MagickWriteImages *wand to-local-file into 
-                ClearMagickWand *wand2 
-                DestroyMagickWand *wand2 
-                ClearPixelWand *pixel 
-                DestroyPixelWand *pixel 
-                end
-            ]
-        ] 
-        export-image-tag: func [tagId md5 data /alpha /rescale /local px py file file-sc img ext] [
-            ext: either any [find [20 36] tagId alpha] [%.png] [%.jpg] 
-            unless exists? probe file: rejoin [swfDir %tag tagId %_ md5 ext] [
-                switch tagId [
-                    6 [write/binary file JPG-repair either JPEGTables [join JPEGTables data/2] [data/2]] 
-                    20 [
-                        write/binary file ImageCore/PIX24-to-PNG context [
-                            bARGB: as-binary zlib-decompress data/6 (4 * data/3 * data/4) 
-                            size: as-pair data/3 data/4
-                        ]
-                    ] 
-                    21 [write/binary file JPG-repair data/2] 
-                    35 [
-                        either alpha [
-                            unless data/4 [
-                                append data get-image-size replace copy file %.png %.jpg
-                            ] 
-                            img: make image! data/4 
-                            img/alpha: as-binary zlib-decompress data/3 (img/size/1 * img/size/2) 
-                            save/png file img
-                        ] [
-                            write/binary file JPG-repair data/2 
-                            append data get-image-size file
-                        ]
-                    ] 
-                    36 [
-                        write/binary file ImageCore/ARGB2PNG context [
-                            bARGB: as-binary zlib-decompress data/6 (4 * data/3 * data/4) 
-                            size: as-pair data/3 data/4
-                        ]
-                    ]
-                ]
-            ] 
-            either rescale [
-                if any [not exists? file-sc: rejoin [scDir %tag tagId %_ md5 ext] force-image-update?] [
-                    resize-image file file-sc reduce [rswf-rescale-index-x rswf-rescale-index-y]
-                ] 
-                read/binary file-sc
-            ] [file]
-        ] 
-        rescale-DefineBits: has [md5 tmp] [
-            md5: enbase/base checksum/method skip inBuffer 2 'md5 16 
-            tmp: parse-DefineBits 
-            writeUI16 tmp/1 
-            writeBytes export-image-tag/rescale 6 md5 tmp 
-            head outBuffer
-        ] 
-        rescale-DefineBitsJPEG2: has [md5 tmp] [
-            md5: enbase/base checksum/method skip inBuffer 2 'md5 16 
-            tmp: parse-DefineBitsJPEG2 
-            writeUI16 tmp/1 
-            writeBytes export-image-tag/rescale 21 md5 tmp 
-            head outBuffer
-        ] 
-        rescale-DefineBitsJPEG3: has [md5 tmp img alphaimg] [
-            md5: enbase/base checksum/method skip inBuffer 2 'md5 16 
-            tmp: parse-DefineBitsJPEG3 
-            writeUI16 tmp/1 
-            img: export-image-tag/rescale 35 md5 tmp 
-            writeUI32 length? img 
-            writeBytes img 
-            img: load export-image-tag/rescale/alpha 35 md5 tmp 
-            writeBytes head head remove/part tail compress img/alpha -4 
-            head outBuffer
-        ] 
-        rescale-DefineBitsLossless: has [md5 tmp img] [
-            md5: enbase/base checksum/method skip inBuffer 2 'md5 16 
-            tmp: parse-DefineBitsLossless 
-            writeUI16 tmp/1 
-            img: export-image-tag/rescale 20 md5 tmp 
-            writeBytes ImageCore/ARGB2BLL ImageCore/load img 
-            head outBuffer
-        ] 
-        rescale-DefineBitsLossless2: has [md5 tmp file file-sc] [
-            md5: enbase/base checksum/method skip inBuffer 2 'md5 16 
-            tmp: parse-DefineBitsLossless 
-            writeUI16 tmp/1 
-            img: export-image-tag/rescale 36 md5 tmp 
-            writeBytes ImageCore/ARGB2BLL ImageCore/load img 
-            head outBuffer
-        ] 
-        rescale-DefineSprite: has [] [
-            carryBytes 4 
-            writeBytes rescaleSWFTags inBuffer 
-            head outBuffer
-        ] 
-        rescaleSHAPERECORD: func [numFillBits numLineBits /local states nBits cx cy dx dy posx posy rposx rposy mainPoints mp newx newy odx ody] [
-            alignBuffers 
-            posx: 0 
-            posy: 0 
-            rposx: 0 
-            rposy: 0 
-            oposx: 0 
-            oposy: 0 
-            moveX: moveY: none 
-            mainPoints: copy [] 
-            minX: minY: 1000000 
-            maxX: maxY: -1000000 
-            until [
-                either readBitLogic [
-                    either readBitLogic [
-                        nBits: 2 + readUB 4 
-                        either readBitLogic [
-                            dx: readSB nBits 
-                            dy: readSB nBits
-                        ] [
-                            either readBitLogic [
-                                dx: 0 
-                                dy: readSB nBits
-                            ] [
-                                dx: readSB nBits 
-                                dy: 0
-                            ]
-                        ] 
-                        oposx: oposx + dx 
-                        oposy: oposy + dy 
-                        dx: - rposx + rposx: (rsci-x oposx) 
-                        dy: - rposy + rposy: (rsci-y oposy) 
-                        either rposx > maxX [maxX: rposx] [if rposx < minX [minX: rposx]] 
-                        either rposy > maxY [maxY: rposy] [if rposy < minY [minY: rposy]] 
-                        case [
-                            all [dx <> 0 dy <> 0] [
-                                writeBit true 
-                                writeBit true 
-                                writeUB (-2 + nBits: getSBnBits reduce [dx dy]) 4 
-                                writeBit true 
-                                writeSB dx nBits 
-                                writeSB dy nBits
-                            ] 
-                            dx <> 0 [
-                                writeBit true 
-                                writeBit true 
-                                nBits: getSBitsLength dx 
-                                writeUB (-2 + nBits) 4 
-                                writeBit false 
-                                writeBit false 
-                                writeSB dx nBits
-                            ] 
-                            dy <> 0 [
-                                writeBit true 
-                                writeBit true 
-                                nBits: getSBitsLength dy 
-                                writeUB (-2 + nBits) 4 
-                                writeBit false 
-                                writeBit true 
-                                writeSB dy nBits
-                            ] 
-                            true [
-                                if find [46 84] tagId [
-                                    writeBit true 
-                                    writeBit true 
-                                    writeUB 0 4 
-                                    writeBit false 
-                                    writeBit false 
-                                    writeSB 0 2
-                                ]
-                            ]
-                        ]
-                    ] [
-                        nBits: 2 + readUB 4 
-                        cx: readSB nBits 
-                        cy: readSB nBits 
-                        oposx: oposx + cx 
-                        oposy: oposy + cy 
-                        cx: - rposx + rposx: (rsci-x oposx) 
-                        cy: - rposy + rposy: (rsci-y oposy) 
-                        dx: readSB nBits 
-                        dy: readSB nBits 
-                        oposx: oposx + dx 
-                        oposy: oposy + dy 
-                        dx: - rposx + rposx: (rsci-x oposx) 
-                        dy: - rposy + rposy: (rsci-y oposy) 
-                        either any [
-                            false
-                        ] [
-                            case [
-                                all [dx <> 0 dy <> 0] [
-                                    print ["xy" dx dy] 
-                                    writeBit true 
-                                    writeBit true 
-                                    writeUB (-2 + nBits: getSBnBits reduce [dx dy]) 4 
-                                    writeBit true 
-                                    writeSB dx nBits 
-                                    writeSB dy nBits
-                                ] 
-                                dx <> 0 [
-                                    writeBit true 
-                                    writeBit true 
-                                    nBits: getSBitsLength dx 
-                                    writeUB (-2 + nBits) 4 
-                                    writeBit false 
-                                    writeBit false 
-                                    writeSB dx nBits
-                                ] 
-                                dy <> 0 [
-                                    writeBit true 
-                                    writeBit true 
-                                    nBits: getSBitsLength dy 
-                                    writeUB (-2 + nBits) 4 
-                                    writeBit false 
-                                    writeBit true 
-                                    writeSB dy nBits
-                                ]
-                            ]
-                        ] [
-                            either all [(abs cx) < 60 (abs cy) < 60] [
-                                dx: cx + dx 
-                                dy: cy + dy 
-                                case [
-                                    all [dx <> 0 dy <> 0] [
-                                        writeBit true 
-                                        writeBit true 
-                                        writeUB (-2 + nBits: getSBnBits reduce [dx dy]) 4 
-                                        writeBit true 
-                                        writeSB dx nBits 
-                                        writeSB dy nBits
-                                    ] 
-                                    dx <> 0 [
-                                        writeBit true 
-                                        writeBit true 
-                                        nBits: getSBitsLength dx 
-                                        writeUB (-2 + nBits) 4 
-                                        writeBit false 
-                                        writeBit false 
-                                        writeSB dx nBits
-                                    ] 
-                                    dy <> 0 [
-                                        writeBit true 
-                                        writeBit true 
-                                        nBits: getSBitsLength dy 
-                                        writeUB (-2 + nBits) 4 
-                                        writeBit false 
-                                        writeBit true 
-                                        writeSB dy nBits
-                                    ]
-                                ]
-                            ] [
-                                writeBit true 
-                                writeBit false 
-                                writeUB (-2 + nBits: getSBnBits reduce [cx cy dx dy]) 4 
-                                writeSB cx nBits 
-                                writeSB cy nBits 
-                                writeSB dx nBits 
-                                writeSB dy nBits
-                            ]
-                        ] 
-                        either rposx > maxX [maxX: rposx] [if rposx < minX [minX: rposx]] 
-                        either rposy > maxY [maxY: rposy] [if rposy < minY [minY: rposy]]
-                    ] 
-                    false
-                ] [
-                    states: readUB 5 
-                    comment {
-^-^-^-^-if all [
-^-^-^-^-^-not none? moveX
-^-^-^-^-^-any [
-^-^-^-^-^-^-moveX <> posX
-^-^-^-^-^-^-moveY <> posY
-^-^-^-^-^-]
-^-^-^-^-^-;all [
-^-^-^-^-^-;^-5 > abs (dx: moveX - posx)
-^-^-^-^-^-;^-5 > abs (dy: moveY - posy)
-^-^-^-^-^-;]
-^-^-^-^-][
-^-^-^-^-^-mindiffx: mindiffy: 10000
-^-^-^-^-^-newPos: none
-^-^-^-^-^-forall mainPoints [
-^-^-^-^-^-^-
-^-^-^-^-^-^-;print [abs (mainPoints/1  - (as-pair posx posy))]
-^-^-^-^-^-^-if all [
-^-^-^-^-^-^-^-mindiffx > tmpx: abs (mainPoints/1/x  - posx)
-^-^-^-^-^-^-^-mindiffy > tmpy: abs (mainPoints/1/y  - posy)
-^-^-^-^-^-^-][
-^-^-^-^-^-^-^-mindiffx: tmpx
-^-^-^-^-^-^-^-mindiffy: tmpy
-^-^-^-^-^-^-^-newPos: mainPoints/1
-^-^-^-^-^-^-]
-^-^-^-^-^-]
-^-^-^-^-^-mainPoints: head mainPoints
-^-^-^-^-^-print ["midiff:" mindiffx mindiffy "newPos:" newPos "oldPos:" as-pair posX posY]
-^-^-^-^-^-if all [
-^-^-^-^-^-^-mindiffx < 20
-^-^-^-^-^-^-mindiffy < 20
-^-^-^-^-^-][
-^-^-^-^-^-^-dx: newPos/x - posx
-^-^-^-^-^-^-dy: newPos/y - posy
-^-^-^-^-^-^-posX: newPos/x
-^-^-^-^-^-^-posY: newPos/y
-^-^-^-^-^-
-^-^-^-^-^-
-^-^-^-^-^-^-;print ["AAAAAAAAAAAA:" moveX posX MoveY posY dx dy]
-^-^-^-^-^-^-;dx: moveX - posx
-^-^-^-^-^-^-;dy: moveY - posy
-^-^-^-^-^-^-case [
-^-^-^-^-^-^-^-all [dx <> 0 dy <> 0][
-^-^-^-^-^-^-^-^-;print "xy"
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeUB (-2 + nBits: getSBnBits reduce [dx dy]) 4 ;new nBits
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeSB dx nBits
-^-^-^-^-^-^-^-^-writeSB dy nBits
-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-dx <> 0 [
-^-^-^-^-^-^-^-^-;print "x"
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-nBits: getSBitsLength dx
-^-^-^-^-^-^-^-^-writeUB (-2 + nBits) 4
-^-^-^-^-^-^-^-^-writeBit false
-^-^-^-^-^-^-^-^-writeBit false
-^-^-^-^-^-^-^-^-writeSB dx nBits
-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-dy <> 0 [
-^-^-^-^-^-^-^-^-;print "y"
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-nBits: getSBitsLength dy
-^-^-^-^-^-^-^-^-writeUB (-2 + nBits) 4
-^-^-^-^-^-^-^-^-writeBit false
-^-^-^-^-^-^-^-^-writeBit true
-^-^-^-^-^-^-^-^-writeSB dy nBits
-^-^-^-^-^-^-^-]
-^-^-^-^-^-^-^-;true [print "!!!!!!!!!!!!!!!!!!"]
-^-^-^-^-^-^-]
-^-^-^-^-^-]
-^-^-^-^-]
-^-^-^-^-} 
-                    either states = 0 [
-                        writeBit false 
-                        writeUB 0 5 
-                        alignBuffers 
-                        true
-                    ] [
-                        writeBit false 
-                        writeUB states 5 
-                        if 0 < (states and 1) [
-                            set [oposx oposy] readSBPair 
-                            moveX: oposx 
-                            moveY: oposy 
-                            rposx: rsci-x oposx 
-                            rposy: rsci-y oposy 
-                            writeSBPair reduce [
-                                rposx 
-                                rposy
-                            ]
-                        ] 
-                        if 0 < (states and 2) [carryUB numFillBits] 
-                        if 0 < (states and 4) [carryUB numFillBits] 
-                        if 0 < (states and 8) [carryUB numLineBits] 
-                        if 0 < (states and 16) [
-                            rescaleFILLSTYLEARRAY 
-                            rescaleLINESTYLEARRAY 
-                            numFillBits: carryUB 4 
-                            numLineBits: carryUB 4
-                        ] 
-                        false
-                    ]
-                ]
-            ]
-        ] 
-        rescaleSBPair: has [nBits x y] [
-            nBits: readUB 5 
-            x: rsci-x readSB nBits 
-            y: rsci-y readSB nBits 
-            writeSBPair reduce [x y]
-        ] 
-        rescaleMATRIX: does [
-            alignBuffers 
-            {nsx: (scx * sx)
-nry: (scx * ry)
-ntx: (scx * tx)
-nrx: (scy * rx)
-nsy: (scy * sy)
-nty: (scy * ty)
-
-[(scx * sx) (scx * ry) (scx * tx)]
-[(scy * rx) (scy * sy) (scy * ty)]
-[ 0         0          1         ]
-
-
-
-
-
-sx: 0.789321899414063
-sy: 1.05244445800781
-rx: 0.287307739257813
-ry: -0.383087158203125
-tx: 1939
-ty: 434
-x: 0
-y: 0
-mm: func[x y sx sy rx ry tx ty][
-^-x: x / 20
-^-y: y / 20
-^-a: sx / 20
-^-c: ry / 20
-^-b: rx / 20
-^-d: sy / 20
-^-tx: tx / 20
-^-ty: ty / 20
-^-
-^-
-^-tmp: (a * d) - (b * c)
-^-ai:   d / tmp
-^-bi: - b / tmp
-^-ci: - c / tmp
-^-di:   a / tmp
-^-txi: ((c * ty) - (d * tx)) / tmp
-^-tyi: -((a * ty) - (b * tx)) / tmp
-
-^-reduce [
-^-^-20 * (xA: (x * ai) + (y * ci) + txi)
-^-^-20 * (yA: (x * bi) + (y * di) + tyi)
-^-]
-]
-
-;sx ry tx
-;rx sy ty
-;0  0  1
-
-I have a placeObject with some transformation:
-Scale: [0.707107543945313 0.707107543945313]
-Rotate: [0.70709228515625 -0.707107543945313]
-Translate: [5000 1000]
-
-which can be writen in matrix as:
-[ 0.707107543945313  -0.707107543945313 5000 ]
-[ 0.70709228515625    0.707107543945313 1000 ]
-[ 0                   0                 1    ]
-
-I was scaling it proportionaly, which was easy, I just scaled the transform part.
-But now I need to scale unproportionaly, which leads to distortion:/
-
-Don't you have any idea how to solve it? If you understand me?
-
-      
-;.5 0 0
-; 0 1 0
-; 0 0 1
-
-nsx: (sx * scx)
-
-[scx 0 0] [sx ry tx
-[0 scy 0] [rx sy ty
-[0   0 1] [0  0  1 ]
-
-nsx: (scx * sx)
-nry: (scx * ry)
-ntx: (scx * tx)
-nrx: (scy * rx)
-nsy: (scy * sy)
-nty: (scy * ty)
-
-[
-(a1 * a2)  + (b1 * c2)^-^-(a1 * b1) + (b1 * d2)
-(c1 * a2)  + (d1 * c2)^-^-(c1 * b2) + (d1 * d2)
-(tx1 * a2) + (ty1 * c2) + tx2^-(tx1 * b2) + (ty1 * d2) + ty2
-]^-^-
-
-n: probe mm 0 0 sx sy rx ry tx ty
-n/1: n/1 / 2
-;ask ""
-probe reduce [
-^-round ((0 + ((n/1 * sx) + (n/2 * ry))) / -20)
-^-round ((0 + ((n/2 * sy) + (n/1 * rx))) / -20)
-]
-a: 
-xx: (x * a) + (y * c) + tx
-yy: (x * b) + (y * d) + ty^-^-
-^-^-^-
-;probe mm n/1 n/2  sx sy rx ry tx ty
-
-
-} 
-            if carryBitLogic [
-                writePair readPair
-            ] 
-            if carryBitLogic [
-                tmp: readPair 
-                writePair reduce [(rswf-rescale-index-y * tmp/1 * power rswf-rescale-index-x -1) (rswf-rescale-index-x * tmp/2 * power rswf-rescale-index-y -1)]
-            ] 
-            rescaleSBPair 
-            alignBuffers
-        ] 
-        rescaleMATRIXall: does [
-            alignBuffers 
-            if carryBitLogic [
-                tmp: readPair 
-                writePair reduce [rswf-rescale-index-x * tmp/1 rswf-rescale-index-y * tmp/2]
-            ] 
-            if carryBitLogic [
-                tmp: readPair 
-                writePair reduce [rswf-rescale-index-y * tmp/1 rswf-rescale-index-x * tmp/2]
-            ] 
-            rescaleSBPair 
-            alignBuffers
-        ] 
-        rescaleGRADIENT: func [type] [
-            alignBuffers 
-            carryBits 4 
-            loop carryUB 4 [
-                carryBytes either tagId >= 32 [5] [4]
-            ] 
-            if all [type = 19 tagId = 83] [carryBytes 2]
-        ] 
-        rescaleMORPHGRADIENT: func [type /local gradients] [
-            alignBuffers 
-            loop carryUI8 [
-                carryBytes 10
-            ]
-        ] 
-        rescaleFILLSTYLEARRAY: does [
-            alignBuffers 
-            loop carryCount [
-                rescaleFILLSTYLE
-            ]
-        ] 
-        rescaleMORPHFILLSTYLEARRAY: does [
-            alignBuffers 
-            loop carryCount [
-                rescaleMORPHFILLSTYLE
-            ]
-        ] 
-        rescaleFILLSTYLE: has [type] [
-            alignBuffers 
-            type: readUI8 
-            case [
-                type = 66 [type: 64 print "66 000000000000000000000000"] 
-                type = 67 [type: 65 print "67 000000000000000000000000"]
-            ] 
-            writeUI8 type 
-            case [
-                type = 0 [
-                    case [
-                        find [46 84] tagId [
-                            carryBytes 8
-                        ] 
-                        tagId >= 32 [carryBytes 4] 
-                        true [carryBytes 3]
-                    ]
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    either find [46 84] tagId [
-                        rescaleMATRIX 
-                        rescaleMATRIX 
-                        rescaleMORPHGRADIENT type
-                    ] [
-                        rescaleMATRIXall 
-                        rescaleGRADIENT type
-                    ]
-                ] 
-                type >= 64 [
-                    reduce either find [46 84] tagId [
-                        carryBytes 2 
-                        rescaleMATRIX 
-                        rescaleMATRIX
-                    ] [
-                        carryBytes 2 
-                        rescaleMATRIX
-                    ]
-                ]
-            ]
-        ] 
-        rescaleMORPHFILLSTYLE: does [
-            alignBuffers 
-            type: readUI8 
-            case [
-                type = 66 [type: 64 print "66 000000000000000000000000"] 
-                type = 67 [type: 65 print "67 000000000000000000000000"]
-            ] 
-            writeUI8 type 
-            case [
-                type = 0 [
-                    carryBytes 8
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    rescaleMATRIXall 
-                    rescaleMATRIXall 
-                    rescaleMORPHGRADIENT type
-                ] 
-                type >= 64 [
-                    carryBytes 2 
-                    rescaleMATRIX 
-                    rescaleMATRIX
-                ]
-            ]
-        ] 
-        rescaleLINESTYLEARRAY: has [LineStyles joinStyle hasFill?] [
-            alignBuffers 
-            loop carryCount [
-                alignBuffers 
-                case [
-                    tagId = 46 [
-                        writeUI16 rsci readUI16 
-                        writeUI16 rsci readUI16 
-                        carryBytes 8
-                    ] 
-                    any [tagId = 67 tagId = 83] [
-                        writeUI16 rsci readUI16 
-                        carryBits 2 
-                        joinStyle: carryUB 2 
-                        hasFill?: carryBitLogic 
-                        carryBits 11 
-                        if joinStyle = 2 [carryBytes 2] 
-                        either hasFill? [rescaleFILLSTYLE] [carryBytes 4]
-                    ] 
-                    tagId = 84 [
-                        writeUI16 rsci readUI16 
-                        writeUI16 rsci readUI16 
-                        carryBits 2 
-                        joinStyle: carryUB 2 
-                        hasFill?: carryBitLogic 
-                        carryBits 11 
-                        if joinStyle = 2 [carryBytes 2] 
-                        either hasFill? [rescaleFILLSTYLE] [carryBytes 8]
-                    ] 
-                    true [
-                        writeUI16 rsci readUI16 
-                        carryBytes either tagId = 32 [4] [3]
-                    ]
-                ]
-            ]
-        ] 
-        rescaleMORPHLINESTYLEARRAY: has [LineStyles] [
-            alignBuffers 
-            loop carryCount [
-                alignBuffers 
-                writeUI16 rsci readUI16 
-                writeUI16 rsci readUI16 
-                case [
-                    tagId = 46 [
-                        writeUI16 rsci readUI16 
-                        writeUI16 rsci readUI16 
-                        carryBytes 8
-                    ] 
-                    any [tagId = 67 tagId = 83] [
-                        writeUI16 rsci readUI16 
-                        carryBits 2 
-                        joinStyle: carryUB 2 
-                        hasFill?: carryBitLogic 
-                        carryBits 11 
-                        if joinStyle = 2 [carryBytes 2] 
-                        either hasFill? [rescaleFILLSTYLE] [carryBytes 4]
-                    ] 
-                    tagId = 84 [
-                        writeUI16 rsci readUI16 
-                        writeUI16 rsci readUI16 
-                        carryBits 2 
-                        joinStyle: carryUB 2 
-                        hasFill?: carryBitLogic 
-                        carryBits 11 
-                        if joinStyle = 2 [carryBytes 2] 
-                        either hasFill? [rescaleFILLSTYLE] [carryBytes 8]
-                    ] 
-                    true [
-                        writeUI16 rsci readUI16 
-                        carryBytes either tagId = 32 [4] [3]
-                    ]
-                ]
-            ]
-        ] 
-        carryCXFORM: has [HasAddTerms? HasMultTerms? nbits] [
-            HasAddTerms?: carryBitLogic 
-            HasMultTerms?: carryBitLogic 
-            nbits: carryUB 4 
-            if HasMultTerms? [
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits
-            ] 
-            if HasAddTerms? [
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits
-            ] 
-            alignBuffers
-        ] 
-        carryCXFORMa: has [HasAddTerms? HasMultTerms? nbits] [
-            HasAddTerms?: carryBitLogic 
-            HasMultTerms?: carryBitLogic 
-            nbits: carryUB 4 
-            if HasMultTerms? [
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits
-            ] 
-            if HasAddTerms? [
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits 
-                carrySB nbits
-            ] 
-            alignBuffers
-        ] 
-        comment {---- end of include %parsers/swf-rescaling.new.r ----} 
-        comment {
-#### Include: %parsers/swf-optimize.r
-#### Title:   "SWF sprites and movie clip related parse functions"
-#### Author:  ""
-----} 
-        use-BB-optimization?: false 
-        set 'swf-tag-optimize func [tagId tagData /local err action st st2] [
-            reduce either none? action: select parseActions tagId [
-                form-tag tagId tagData
-            ] [
-                setStreamBuffer tagData 
-                clearOutBuffer 
-                if error? set/any 'err try [
-                    set/any 'result do bind/copy action 'self
-                ] [
-                    print ajoin ["!!! ERROR while optimizing tag:" select swfTagNames tagId "(" tagId ")"] 
-                    throw err
-                ] 
-                result
-            ]
-        ] 
-        optimize-detectBmpFillBounds: has [
-            shape result fillStyles lineStyles pos st dx dy tmp lineStyle fillStyle0 fillStyle1 p fill 
-            posX posY t0x t0y s0x s0y r0x r0y t1x t1y s1x s1y r1x r1y bmpFills noCropBitmaps usedFills usedLines allUsedLines allUsedFills 
-            lastBmpFill
-        ] [
-            bmpFills: copy [] 
-            noCropBitmaps: copy [] 
-            id: readUI16 
-            bounds: readRect 
-            if tagId >= 67 [
-                readRect 
-                skipBytes 1
-            ] 
-            fillStyles: readFILLSTYLEARRAY 
-            lineStyles: readLINESTYLEARRAY 
-            byteAlign 
-            lineStyle: fillStyle0: fillStyle1: none 
-            pos: 0x0 
-            posX: posY: 0 
-            fill: fill0posX: fill1posX: fill0posY: fill1posY: fill0: fill1: none 
-            minX: fill0minX: fill1minX: 
-            minY: fill0minY: fill1minY: 100000000 
-            maxX: fill0maxX: fill1maxX: 
-            maxY: fill0maxY: fill1maxY: -100000000 
-            usedFills: copy [] 
-            usedLines: copy [] 
-            allUsedFills: copy [] 
-            allUsedLines: copy [] 
-            allBounds: copy [] 
-            add-BmpFill: func [id minx miny maxx maxy sx sy rx ry tx ty /local lastBmpFill] [
-                lastBmpFill: skip tail bmpFills -11 
-                either all [
-                    id = lastBmpFill/1 
-                    sx = lastBmpFill/6 
-                    sy = lastBmpFill/7 
-                    rx = lastBmpFill/8 
-                    ry = lastBmpFill/9 
-                    tx = lastBmpFill/10 
-                    ty = lastBmpFill/11
-                ] [
-                    change/part next lastBmpFill reduce [
-                        min minX lastBmpFill/2 
-                        min minY lastBmpFill/3 
-                        max maxX lastBmpFill/4 
-                        max maxY lastBmpFill/5
-                    ] 4
-                ] [
-                    repend bmpFills [id minx miny maxx maxy sx sy rx ry tx ty]
-                ]
-            ] 
-            numFillBits: readUB 4 
-            numLineBits: readUB 4 
-            until [
-                either readBitLogic [
-                    either readBitLogic [
-                        nBits: 2 + readUB 4 
-                        either readBitLogic [
-                            posX: posX + readSB nBits 
-                            posY: posY + readSB nBits
-                        ] [
-                            either readBitLogic [
-                                posY: posY + readSB nBits
-                            ] [posX: posX + readSB nBits]
-                        ] 
-                        if fill0posX [
-                            fill0posX: posX 
-                            fill0posY: posY 
-                            fill0minX: min fill0minX fill0posX 
-                            fill0maxX: max fill0maxX fill0posX 
-                            fill0minY: min fill0minY fill0posY 
-                            fill0maxY: max fill0maxY fill0posY
-                        ] 
-                        if fill1posX [
-                            fill1posX: posX 
-                            fill1posY: posY 
-                            fill1minX: min fill1minX fill1posX 
-                            fill1maxX: max fill1maxX fill1posX 
-                            fill1minY: min fill1minY fill1posY 
-                            fill1maxY: max fill1maxY fill1posY
-                        ] 
-                        minX: min minX posX 
-                        maxX: max maxX posX 
-                        minY: min minY posY 
-                        maxY: max maxY posY
-                    ] [
-                        nBits: 2 + readUB 4 
-                        x0: posX 
-                        y0: posY 
-                        x1: x0 + readSB nBits 
-                        y1: y0 + readSB nBits 
-                        posX: x1 + readSB nBits 
-                        posY: y1 + readSB nBits 
-                        minY: min minY yMin: either y0 > posY [
-                            either y1 > posY [posY] [
-                                t: - (y1 - y0) / (posY - (2 * y1) + y0) 
-                                (t1: 1 - t) * t1 * y0 + (2 * t * t1 * y1) + (t * t * posY)
-                            ]
-                        ] [
-                            either y1 > y0 [y0] [
-                                t: - (y1 - y0) / (posY - (2 * y1) + y0) 
-                                (t1: 1 - t) * t1 * y0 + (2 * t * t1 * y1) + (t * t * posY)
-                            ]
-                        ] 
-                        maxY: max maxY yMax: either y0 > posY [
-                            either y1 < y0 [y0] [
-                                t: - (y1 - y0) / (posY - (2 * y1) + y0) 
-                                (t1: 1 - t) * t1 * y0 + (2 * t * t1 * y1) + (t * t * posY)
-                            ]
-                        ] [
-                            either posY > y1 [posY] [
-                                t: - (y1 - y0) / (posY - (2 * y1) + y0) 
-                                (t1: 1 - t) * t1 * y0 + (2 * t * t1 * y1) + (t * t * posY)
-                            ]
-                        ] 
-                        minX: min minX xMin: either x0 > posX [
-                            either x1 > posX [posX] [
-                                t: - (x1 - x0) / (posX - (2 * x1) + x0) 
-                                (t1: 1 - t) * t1 * x0 + (2 * t * t1 * x1) + (t * t * posX)
-                            ]
-                        ] [
-                            either x1 > x0 [x0] [
-                                t: - (x1 - x0) / (posX - (2 * x1) + x0) 
-                                (t1: 1 - t) * t1 * x0 + (2 * t * t1 * x1) + (t * t * posX)
-                            ]
-                        ] 
-                        maxX: max maxX xMax: either x0 > posX [
-                            either x1 < x0 [x0] [
-                                t: - (x1 - x0) / (posX - (2 * x1) + x0) 
-                                (t1: 1 - t) * t1 * x0 + (2 * t * t1 * x1) + (t * t * posX)
-                            ]
-                        ] [
-                            either x1 < posX [posX] [
-                                t: - (x1 - x0) / (posX - (2 * x1) + x0) 
-                                (t1: 1 - t) * t1 * x0 + (2 * t * t1 * x1) + (t * t * posX)
-                            ]
-                        ] 
-                        if fill0posX [
-                            fill0posX: posX 
-                            fill0posY: posY 
-                            fill0minX: min fill0minX xMin 
-                            fill0maxX: max fill0maxX xMax 
-                            fill0minY: min fill0minY yMin 
-                            fill0maxY: max fill0maxY yMax
-                        ] 
-                        if fill1posX [
-                            fill1posX: posX 
-                            fill1posY: posY 
-                            fill1minX: min fill1minX xMin 
-                            fill1maxX: max fill1maxX xMax 
-                            fill1minY: min fill1minY yMin 
-                            fill1maxY: max fill1maxY yMax
-                        ]
-                    ] 
-                    false
-                ] [
-                    states: readUB 5 
-                    either states = 0 [
-                        byteAlign 
-                        true
-                    ] [
-                        if 0 < (states and 1) [
-                            set [posX posY] readSBPair 
-                            if 0 = (states and 16) [
-                                minX: min minX posX 
-                                maxX: max maxX posX 
-                                minY: min minY posY 
-                                maxY: max maxY posY
-                            ]
-                        ] 
-                        prevFill0: fillStyle0 
-                        prevFill1: fillStyle1 
-                        fill0: fill1: none 
-                        if 0 < (states and 2) [
-                            fillStyle0: either fill0: readUB numFillBits [
-                                either fill0 > 0 [
-                                    append usedFills fill0 
-                                    pick fillStyles fill0
-                                ] [none]
-                            ] [none]
-                        ] 
-                        if 0 < (states and 4) [
-                            fillStyle1: either fill1: readUB numFillBits [
-                                either fill1 > 0 [
-                                    append usedFills fill1 
-                                    pick fillStyles fill1
-                                ] [none]
-                            ] [none]
-                        ] 
-                        if 0 < (states and 8) [
-                            lineStyle: either tmp: readUB numLineBits [
-                                either tmp > 0 [
-                                    append usedLines tmp 
-                                    pick lineStyles tmp
-                                ] [none]
-                            ] [none]
-                        ] 
-                        if fillStyle0 <> prevFill0 [
-                            if all [prevFill0 find [64 65 66 67] prevFill0/1 not none? fill0] [
-                                add-BmpFill prevFill0/2/1 fill0minX fill0minY fill0maxX fill0maxY s0x s0y r0x r0y t0x t0y
-                            ] 
-                            either all [
-                                fillStyle0 
-                                find [64 65 66 67] fillStyle0/1
-                            ] [
-                                tmp: fillStyle0/2/2 
-                                t0x: tmp/3/1 
-                                t0y: tmp/3/2 
-                                either tmp/2 [
-                                    r0x: tmp/2/1 
-                                    r0y: tmp/2/2
-                                ] [
-                                    r0x: r0y: 0
-                                ] 
-                                either tmp/1 [
-                                    s0x: tmp/1/1 
-                                    s0y: tmp/1/2
-                                ] [
-                                    s0x: s0y: 0
-                                ] 
-                                fill0posX: posX 
-                                fill0posY: posY 
-                                fill0minX: fill0minY: 100000000 
-                                fill0maxX: fill0maxY: -100000000
-                            ] [
-                                t0x: t0y: r0x: r0y: s0x: s0y: 
-                                fill0posX: fill0posY: none
-                            ]
-                        ] 
-                        if fillStyle1 <> prevFill1 [
-                            if all [prevFill1 find [64 65 66 67] prevFill1/1 not none? fill1] [
-                                add-BmpFill prevFill1/2/1 fill1minX fill1minY fill1maxX fill1maxY s1x s1y r1x r1y t1x t1y
-                            ] 
-                            either all [
-                                fillStyle1 
-                                find [64 65 66 67] fillStyle1/1
-                            ] [
-                                tmp: fillStyle1/2/2 
-                                t1x: tmp/3/1 
-                                t1y: tmp/3/2 
-                                either tmp/2 [
-                                    r1x: tmp/2/1 
-                                    r1y: tmp/2/2
-                                ] [
-                                    r1x: r1y: 0
-                                ] 
-                                either tmp/1 [
-                                    s1x: tmp/1/1 
-                                    s1y: tmp/1/2
-                                ] [
-                                    s1x: s1y: 0
-                                ] 
-                                fill1posX: posX 
-                                fill1posY: posY 
-                                fill1minX: fill1minY: 100000000 
-                                fill1maxX: fill1maxY: -100000000
-                            ] [
-                                t1x: t1y: r1x: r1y: s1x: s1y: 
-                                fill1posX: fill1posY: none
-                            ]
-                        ] 
-                        if fill0posX [
-                            fill0minX: min fill0minX fill0posX 
-                            fill0maxX: max fill0maxX fill0posX 
-                            fill0minY: min fill0minY fill0posY 
-                            fill0maxY: max fill0maxY fill0posY
-                        ] 
-                        if fill1posX [
-                            fill1minX: min fill1minX fill1posX 
-                            fill1maxX: max fill1maxX fill1posX 
-                            fill1minY: min fill1minY fill1posY 
-                            fill1maxY: max fill1maxY fill1posY
-                        ] 
-                        if 0 < (states and 16) [
-                            repend/only allUsedFills [
-                                copy/deep fillStyles 
-                                copy sort unique usedFills
-                            ] 
-                            repend/only allUsedLines [
-                                copy/deep lineStyles 
-                                copy sort unique usedLines
-                            ] 
-                            append/only allBounds reduce [to-integer minX round maxX to-integer minY round maxY] 
-                            clear head usedFills 
-                            clear head usedLines 
-                            byteAlign 
-                            fillStyles: readFILLSTYLEARRAY 
-                            lineStyles: readLINESTYLEARRAY 
-                            prevFill0: prevFill1: lineStyle: fillStyle0: fillStyle1: none 
-                            pos: 0x0 
-                            posX: posY: 0 
-                            fill: fill0posX: fill1posX: fill0posY: fill1posY: fill0: fill1: none 
-                            minX: fill0minX: fill1minX: 
-                            minY: fill0minY: fill1minY: 100000000 
-                            maxX: fill0maxX: fill1maxX: 
-                            maxY: fill0maxY: fill1maxY: -100000000 
-                            numFillBits: readUB 4 
-                            numLineBits: readUB 4
-                        ] 
-                        false
-                    ]
-                ]
-            ] 
-            if all [fill0posX fillStyle0 find [64 65 66 67] fillStyle0/1] [
-                add-BmpFill fillStyle0/2/1 fill0minX fill0minY fill0maxX fill0maxY s0x s0y r0x r0y t0x t0y
-            ] 
-            if all [fill1posX fillStyle1 find [64 65 66 67] fillStyle1/1] [
-                add-BmpFill fillStyle1/2/1 fill1minX fill1minY fill1maxX fill1maxY s1x s1y r1x r1y t1x t1y
-            ] 
-            repend/only allUsedFills [
-                copy/deep fillStyles 
-                copy sort unique usedFills
-            ] 
-            repend/only allUsedLines [
-                copy/deep lineStyles 
-                copy sort unique usedLines
-            ] 
-            append/only allBounds reduce [to-integer minX round maxX to-integer minY round maxY] 
-            clear usedLines 
-            clear usedFills 
-            comment {
-^-shape: parse-DefineShape
-^-;print length? shape
-^-;ask ""
-^-;print "-=-=-=-"
-^-fillStyles: shape/4/1
-
-
-^-lineStyles: shape/4/2
-^-lineStyle: fillStyle0: fillStyle1: none
-^-pos: 0x0
-^-posX: posY: 0
-^-fill: fill0posX: fill1posX: fill0posY: fill1posY: none
-^-minX: fill0minX: fill1minX:
-^-minY: fill0minY: fill1minY:  100000000
-^-maxX: fill0maxX: fill1maxX:
-^-maxY: fill0maxY: fill1maxY: -100000000
-^-
-^-
-^-allUsedFills: copy []
-^-usedFills: copy []
-^-usedLines: copy []
-^-allUsedLines: copy []
-^-allBounds: copy []
-^-
-^-parse shape/4/3 [
-^-^-any [
-^-^-^-'style set st block! p: (
-^-^-^-^-;print ["style:" mold st]
-^-^-^-^-if all [st/2 st/2 > 0] [append usedFills st/2]
-^-^-^-^-if all [st/3 st/3 > 0] [append usedFills st/3]
-^-^-^-^-if all [st/4 st/4 > 0] [append usedLines st/4]
-^-^-^-^-;ask ""
-^-^-^-^-if all [fill0posX fill0bmp find [64 65 66 67] fill0bmp/1 not none? st/2] [
-^-^-^-^-^-;print ["end fill0-" fill0posX fill0posY]
-^-^-^-^-^-repend bmpFills reduce [fill0bmp/2/1 fill0minX fill0minY fill0maxX fill0maxY s0x s0y r0x r0y t0x t0y]
-^-^-^-^-^-fill0bmp: none
-^-^-^-^-]
-^-^-^-^-if all [fill1posX fill1bmp find [64 65 66 67] fill1bmp/1 not none? st/3] [
-^-^-^-^-^-;print ["end fill1-" fill1posX fill1posY]
-^-^-^-^-^-repend bmpFills reduce [fill1bmp/2/1 fill1minX fill1minY fill1maxX fill1maxY s1x s1y r1x r1y t1x t1y]
-^-^-^-^-^-fill1bmp: none
-^-^-^-^-]
-^-^-^-^-;smazat?-> if fill1pos [fill1pos: fill1pos + as-pair dx dy]
-^-^-^-^-fill0bmp: either fill0: st/2 [fillStyles/(fill0)][none]
-^-^-^-^-fill1bmp: either fill1: st/3 [fillStyles/(fill1)][none]
-^-^-^-^-if st/1 [
-^-^-^-^-^-posX: st/1/1
-^-^-^-^-^-posY: st/1/2
-^-^-^-^-^-minX: min minX posX
-^-^-^-^-^-maxX: max maxX posX
-^-^-^-^-^-minY: min minY posY
-^-^-^-^-^-maxY: max maxY posY
-^-^-^-^-]
-^-^-^-^-;print ["POS:" posX posY]
-^-^-^-^-either any [
-^-^-^-^-^-all [fill0bmp find [64 65 66 67] fill0bmp/1]
-^-^-^-^-^-all [fill1bmp find [64 65 66 67] fill1bmp/1]
-^-^-^-^-][
-^-^-^-^-;^-print ["bmpfill" mold fill0bmp mold fill1bmp]
-^-^-^-^-^-;if fill0bmp [print ["????????????????????????" fill0bmp/2/1 fill0bmp/1]]
-^-^-^-^-^-;if fill1bmp [print ["????????????????????????" fill1bmp/2/1 fill1bmp/1]]
-^-^-^-^-^-either all [
-^-^-^-^-^-^-fill0bmp
-^-^-^-^-^-^-find [64 65 66 67] fill0bmp/1
-^-^-^-^-^-][
-^-^-^-^-^-;^-probe fillStyles
-^-^-^-^-^-^-tmp: fill0bmp/2/2
-
-^-^-^-^-^-^-t0x: tmp/3/1
-^-^-^-^-^-^-t0y: tmp/3/2
-^-^-^-^-^-^-either tmp/2 [
-^-^-^-^-^-^-^-r0x: tmp/2/1
-^-^-^-^-^-^-^-r0y: tmp/2/2
-^-^-^-^-^-^-][
-^-^-^-^-^-^-^-r0x: r0y: 0^-
-^-^-^-^-^-^-]
-^-^-^-^-^-^-either tmp/1 [
-^-^-^-^-^-^-^-s0x: tmp/1/1
-^-^-^-^-^-^-^-s0y: tmp/1/2
-^-^-^-^-^-^-][
-^-^-^-^-^-^-^-s0x: s0y: 0^-
-^-^-^-^-^-^-]
-^-^-^-^-^-^-fill0posX: posX ;(posX * s0x) + (posY * r0y) + t0x
-^-^-^-^-^-^-fill0posY: posY ;(posY * s0y) + (posX * r0x) + t0y 
-^-^-^-^-^-^-fill0minX: fill0minY:  100000000
-^-^-^-^-^-^-fill0maxX: fill0maxY: -100000000
-^-^-^-^-^-][
-^-^-^-^-^-^-t0x: t0y: r0x: r0y: s0x: s0y:
-^-^-^-^-^-^-fill0posX: fill0posY: none
-^-^-^-^-^-]
-^-^-^-^-^-either all [fill1bmp find [64 65 66 67] fill1bmp/1] [
-^-^-^-^-^-^-tmp: fill1bmp/2/2
-
-^-^-^-^-^-^-t1x: tmp/3/1
-^-^-^-^-^-^-t1y: tmp/3/2
-^-^-^-^-^-^-either tmp/2 [
-^-^-^-^-^-^-^-r1x: tmp/2/1
-^-^-^-^-^-^-^-r1y: tmp/2/2
-^-^-^-^-^-^-][
-^-^-^-^-^-^-^-r1x: r1y: 0^-
-^-^-^-^-^-^-]
-^-^-^-^-^-^-either tmp/1 [
-^-^-^-^-^-^-^-s1x: tmp/1/1
-^-^-^-^-^-^-^-s1y: tmp/1/2
-^-^-^-^-^-^-][
-^-^-^-^-^-^-^-s1x: s1y: 1^-
-^-^-^-^-^-^-]
-^-^-^-^-^-^-fill1posX: posX ;(posX * s1x) + (posY * r1y) + t1x
-^-^-^-^-^-^-fill1posY: posY ;(posY * s1y) + (posX * r1x) + t1y 
-^-^-^-^-^-^-fill1minX: fill1minY:  100000000
-^-^-^-^-^-^-fill1maxX: fill1maxY: -100000000
-^-^-^-^-^-][
-^-^-^-^-^-^-t1x: t1y: r1x: r1y: s1x: s1y:
-^-^-^-^-^-^-fill1posX: fill1posY: none
-^-^-^-^-^-]
-
-^-^-^-^-^-;print ["FILL0:" fill0posX fill0posY t0x t0y s0x s0y r0x r0y]
-^-^-^-^-^-;print ["FILL1:" fill1posX fill1posY t1x t1y s1x s1y r1x r1y]
-^-^-^-^-^-
-^-^-^-^-^-if fill0posX [
-^-^-^-^-^-^-;print ["fill0pos" fill0posX fill0posY]
-^-^-^-^-^-^-fill0minX: min fill0minX fill0posX
-^-^-^-^-^-^-fill0maxX: max fill0maxX fill0posX
-^-^-^-^-^-^-fill0minY: min fill0minY fill0posY
-^-^-^-^-^-^-fill0maxY: max fill0maxY fill0posY
-^-^-^-^-^-^-print ["??" fill0minX fill0minY ]
-^-^-^-^-^-]
-^-^-^-^-^-if fill1posX [
-^-^-^-^-^-^-fill1minX: min fill1minX fill1posX
-^-^-^-^-^-^-fill1maxX: max fill1maxX fill1posX
-^-^-^-^-^-^-fill1minY: min fill1minY fill1posY
-^-^-^-^-^-^-fill1maxY: max fill1maxY fill1posY
-^-^-^-^-^-]
-^-^-^-^-][
-^-^-^-^-^-;print "nobmpfill"
-^-^-^-^-^-either tmp: find p 'style [p: tmp][p: tail p]
-^-^-^-^-]
-^-^-^-^-
-^-^-^-^-
-^-^-^-^-if st/5 [
-^-^-^-^-^-repend/only allUsedFills [
-^-^-^-^-^-^-copy/deep fillStyles
-^-^-^-^-^-^-copy sort unique usedFills
-^-^-^-^-^-] 
-^-^-^-^-^-repend/only allUsedLines [
-^-^-^-^-^-^-copy/deep lineStyles
-^-^-^-^-^-^-copy sort unique usedLines
-^-^-^-^-^-]
-^-^-^-^-^-append/only allBounds reduce [minX maxX minY maxY]
-^-^-^-^-^-
-^-^-^-^-^-clear head usedFills
-^-^-^-^-^-clear head usedLines
-^-^-^-^-^-
-^-^-^-^-^-;print ["new fillStyles:" mold st/5/1]
-^-^-^-^-^-;ask ""
-^-^-^-^-^-;new-style
-^-^-^-^-^-fillStyles: st/5/1
-^-^-^-^-^-lineStyles: st/5/2
-^-^-^-^-^-lineStyle: fillStyle0: fillStyle1: none
-^-^-^-^-^-pos: 0x0
-^-^-^-^-^-posX: posY: 0
-^-^-^-^-^-fill: fill0posX: fill1posX: fill0posY: fill1posY: none
-^-^-^-^-^-minX: fill0minX: fill1minX:
-^-^-^-^-^-minY: fill0minY: fill1minY:  100000000
-^-^-^-^-^-maxX: fill0maxX: fill1maxX:
-^-^-^-^-^-maxY: fill0maxY: fill1maxY: -100000000
-^-^-^-^-]
-^-^-^-) :p
-^-^-^-| 'line some [
-^-^-^-^-set dx integer! set dy integer! (
-^-^-^-^-^-posX: posX + dx
-^-^-^-^-^-posY: posY + dy
-^-^-^-^-^-if fill0posX [
-^-^-^-^-^-^-fill0posX: posX ;(posX * s0x) + (posY * r0y) + t0x
-^-^-^-^-^-^-fill0posY: posY ;(posY * s0y) + (posX * r0x) + t0y 
-^-^-^-^-^-^-;print ["FILL0 pos:" fill0posX fill0posY]
-^-^-^-^-^-^-fill0minX: min fill0minX fill0posX
-^-^-^-^-^-^-fill0maxX: max fill0maxX fill0posX
-^-^-^-^-^-^-fill0minY: min fill0minY fill0posY
-^-^-^-^-^-^-fill0maxY: max fill0maxY fill0posY
-^-^-^-^-^-]
-^-^-^-^-^-if fill1posX [
-^-^-^-^-^-^-fill1posX: posX ;(posX * s1x) + (posY * r1y) + t1x
-^-^-^-^-^-^-fill1posY: posY ;(posY * s1y) + (posX * r1x) + t1y 
-^-^-^-^-^-^-fill1minX: min fill1minX fill1posX
-^-^-^-^-^-^-fill1maxX: max fill1maxX fill1posX
-^-^-^-^-^-^-fill1minY: min fill1minY fill1posY
-^-^-^-^-^-^-fill1maxY: max fill1maxY fill1posY
-^-^-^-^-^-]
-^-^-^-^-^-minX: min minX posX
-^-^-^-^-^-maxX: max maxX posX
-^-^-^-^-^-minY: min minY posY
-^-^-^-^-^-maxY: max maxY posY
-^-^-^-^-)]
-^-^-^-|
-^-^-^-'curve some [
-^-^-^-^-;set cx integer! set cy integer!
-^-^-^-^-set dx integer! set dy integer! (
-^-^-^-^-^-posX: posX + dx
-^-^-^-^-^-posY: posY + dy
-^-^-^-^-^-if fill0posX [
-^-^-^-^-^-^-fill0posX: posX ;(posX * s0x) + (posY * r0y) + t0x
-^-^-^-^-^-^-fill0posY: posY ;(posY * s0y) + (posX * r0x) + t0y 
-^-^-^-^-^-^-fill0minX: min fill0minX fill0posX
-^-^-^-^-^-^-fill0maxX: max fill0maxX fill0posX
-^-^-^-^-^-^-fill0minY: min fill0minY fill0posY
-^-^-^-^-^-^-fill0maxY: max fill0maxY fill0posY
-^-^-^-^-^-]
-^-^-^-^-^-if fill1posX [
-^-^-^-^-^-^-fill1posX: posX ;(posX * s1x) + (posY * r1y) + t1x
-^-^-^-^-^-^-fill1posY: posY ;(posY * s1y) + (posX * r1x) + t1y 
-^-^-^-^-^-^-fill1minX: min fill1minX fill1posX
-^-^-^-^-^-^-fill1maxX: max fill1maxX fill1posX
-^-^-^-^-^-^-fill1minY: min fill1minY fill1posY
-^-^-^-^-^-^-fill1maxY: max fill1maxY fill1posY
-^-^-^-^-^-]
-^-^-^-^-^-minX: min minX posX
-^-^-^-^-^-maxX: max maxX posX
-^-^-^-^-^-minY: min minY posY
-^-^-^-^-^-maxY: max maxY posY
-^-^-^-^-)
-^-^-^-]
-^-^-]
-^-]
-^-if all [fill0posX fill0bmp] [
-^-^-;print ["end fill0" fill0posX fill0posY]
-^-^-repend bmpFills reduce [fill0bmp/2/1 fill0minX fill0minY fill0maxX fill0maxY s0x s0y r0x r0y t0x t0y]
-^-^-
-^-]
-^-if all [fill1posX fill1bmp] [
-^-^-;print ["end fill1" fill1posX fill1posY]
-^-^-repend bmpFills reduce [fill1bmp/2/1 fill1minX fill1minY fill1maxX fill1maxY s1x s1y r1x r1y t1x t1y]
-^-^-
-^-]
-
-
-^-;probe fill0bmp
-print ["bmpFills" mold bmpFills]
-
-
-;^-bmpFills: copy []
-;^-foreach fill fillStyles [
-;^-^-if find [64 65 66 67] fill/1 [
-;^-^-^-repend bmpFills probe reduce [fill/2/1 fill/2/2/3  fill/3 fill/4 fill/5 fill/6]
-;^-^-]
-;^-]
-
-
-^-repend/only allUsedFills [
-^-^-copy/deep fillStyles
-^-^-copy sort unique usedFills
-^-]
-^-repend/only allUsedLines [
-^-^-copy/deep lineStyles
-^-^-copy sort unique usedLines
-^-]
-^-append/only allBounds reduce [minX maxX minY maxY]
-
-^-clear usedLines
-^-clear usedFills
-
-^-;print "======"
-^-;probe allUsedFills
-^-;probe allUsedLines
-^-;ask ""
-^-^-^-^-^-
-^-;print ["usedFills:" length? allUsedFills tab mold allUsedFills]
-^-;ask ""
-^-} 
-            reduce [
-                bmpFills 
-                id 
-                context compose/only [
-                    fills: (new-line allUsedFills true) 
-                    lines: (new-line allUsedLines true) 
-                    bounds: (allBounds)
-                ]
-            ]
-        ] 
-        optimize-updateShape: has [id bounds styles fillsMap linesMap end?] [
-            id: carryUI16 
-            writeRect bounds: readRect 
-            if tagId >= 67 [
-                writeRect readRect 
-                carryBytes 1
-            ] 
-            alignBuffers 
-            styles: select data/shapeStyles id 
-            fillsMap: optimize-processFills styles/fills/1/2 
-            linesMap: optimize-processLines styles/lines/1/2 
-            numFillBits: carryUB 4 
-            numLineBits: carryUB 4 
-            end?: false 
-            until [
-                either all [
-                    false 
-                    use-BB-optimization? 
-                    empty? linesMap 1 = length? fillsMap 
-                    tmp: pick styles/fills/1/1 fillsMap/1 
-                    find [64 65 66] tmp/1 
-                    find [35 36] first select swfBitmaps tmp/2/1 
-                    none? find data/noBBids tmp/2/1
-                ] [
-                    until [
-                        either readBitLogic [
-                            either readBitLogic [
-                                nBits: 2 + readUB 4 
-                                either readBitLogic [
-                                    skipBits (2 * nBits)
-                                ] [skipBits (1 + nBits)]
-                            ] [
-                                skipBits (4 * (2 + readUB 4))
-                            ] 
-                            false
-                        ] [
-                            states: readUB 5 
-                            either states = 0 [
-                                optimize-writeBBshape styles/bounds/1 
-                                writeBit false 
-                                writeUB 0 5 
-                                alignBuffers 
-                                end?: 
-                                true
-                            ] [
-                                either 0 < (states and 16) [
-                                    optimize-writeBBshape styles/bounds/1 
-                                    writeBit false 
-                                    writeUB states 5 
-                                    if 0 < (states and 1) [carrySBPair] 
-                                    if 0 < (states and 2) [
-                                        writeUB either 0 < tmp: readUB numFillBits [index? find fillsMap tmp] [0] numFillBits
-                                    ] 
-                                    if 0 < (states and 4) [
-                                        writeUB either 0 < tmp: readUB numFillBits [index? find fillsMap tmp] [0] numFillBits
-                                    ] 
-                                    if 0 < (states and 8) [
-                                        writeUB either 0 < tmp: readUB numLineBits [index? find linesMap tmp] [0] numLineBits
-                                    ] 
-                                    alignBuffers 
-                                    styles/fills: next styles/fills 
-                                    styles/lines: next styles/lines 
-                                    styles/bounds: next styles/bounds 
-                                    fillsMap: optimize-processFills styles/fills/1/2 
-                                    linesMap: optimize-processLines styles/lines/1/2 
-                                    numFillBits: carryUB 4 
-                                    numLineBits: carryUB 4 
-                                    break
-                                ] [
-                                    if 0 < (states and 1) [
-                                        skipSBPair
-                                    ] 
-                                    if 0 < (states and 2) [skipBits numFillBits] 
-                                    if 0 < (states and 4) [skipBits numFillBits] 
-                                    if 0 < (states and 8) [skipBits numLineBits]
-                                ] 
-                                false
-                            ]
-                        ]
-                    ]
-                ] [
-                    until [
-                        either carryBitLogic [
-                            either carryBitLogic [
-                                nBits: 2 + carryUB 4 
-                                either carryBitLogic [
-                                    carrySB nBits 
-                                    carrySB nBits
-                                ] [
-                                    carryBitLogic 
-                                    carrySB nBits
-                                ]
-                            ] [
-                                nBits: 2 + carryUB 4 
-                                carrySB nBits 
-                                carrySB nBits 
-                                carrySB nBits 
-                                carrySB nBits
-                            ] 
-                            false
-                        ] [
-                            states: carryUB 5 
-                            either states = 0 [
-                                alignBuffers 
-                                end?: 
-                                true
-                            ] [
-                                if 0 < (states and 1) [
-                                    carrySBPair
-                                ] 
-                                if 0 < (states and 2) [
-                                    writeUB either 0 < tmp: readUB numFillBits [index? find fillsMap tmp] [0] numFillBits
-                                ] 
-                                if 0 < (states and 4) [
-                                    writeUB either 0 < tmp: readUB numFillBits [index? find fillsMap tmp] [0] numFillBits
-                                ] 
-                                if 0 < (states and 8) [
-                                    writeUB either 0 < tmp: readUB numLineBits [index? find linesMap tmp] [0] numLineBits
-                                ] 
-                                if 0 < (states and 16) [
-                                    alignBuffers 
-                                    styles/fills: next styles/fills 
-                                    styles/lines: next styles/lines 
-                                    styles/bounds: next styles/bounds 
-                                    fillsMap: optimize-processFills styles/fills/1/2 
-                                    linesMap: optimize-processLines styles/lines/1/2 
-                                    numFillBits: carryUB 4 
-                                    numLineBits: carryUB 4 
-                                    break
-                                ] 
-                                false
-                            ]
-                        ]
-                    ]
-                ] 
-                end?
-            ] 
-            comment {
-^-foreach fill usedFills [
-^-^-print "+++++++++++++++++++"
-^-^-probe fill
-^-^-writeUI8 type: fill/1
-^-^-case  [
-^-^-^-type = 0 [
-^-^-^-^-;solid fill
-^-^-^-^-case [
-^-^-^-^-^-find [46 84] tagId [
-^-^-^-^-^-^-;morph
-^-^-^-^-^-^-writeRGBA fill/2/1
-^-^-^-^-^-^-writeRGBA fill/2/2
-^-^-^-^-^-]
-^-^-^-^-^-tagId >= 32 [writeRGBA fill/2]
-^-^-^-^-^-true [writeRGB fill/2]
-^-^-^-^-]
-^-^-^-]
-^-^-^-any [
-^-^-^-^-type = 16 ;linear gradient fill
-^-^-^-^-type = 18 ;radial gradient fill
-^-^-^-^-type = 19 ;focal gradient fill (swf8)
-^-^-^-][
-^-^-^-^-;gradient
-^-^-^-^-either find [46 84] tagId [
-^-^-^-^-^-;morph
-^-^-^-^-^-writeMATRIX   fill/2/1
-^-^-^-^-^-writeMATRIX   fill/2/2
-^-^-^-^-^-writeGRADIENT fill/2/3 type
-^-^-^-^-][^-;shape
-^-^-^-^-^-writeMATRIX   fill/2/1
-^-^-^-^-^-writeGRADIENT fill/2/2 type
-^-^-^-^-]
-^-^-^-]
-^-^-^-type >= 64 [
-^-^-^-^-;bitmap
-^-^-^-^-reduce either find [46 84] tagId [
-^-^-^-^-^-;morph
-^-^-^-^-^-writeUI16 fill/2/1
-^-^-^-^-^-writeMATRIX   fill/2/2
-^-^-^-^-^-writeMATRIX   fill/2/3
-^-^-^-^-][^-;shape
-^-^-^-^-^-writeUI16 fill/2/1
-^-^-^-^-^-writeMATRIX   fill/2/2
-^-^-^-^-]
-^-^-^-]
-^-^-] 
-^-]
-^-;zapsal jsem pouze pouzite fills
-^-} 
-            alignBuffers 
-            data/shapeReduction: data/shapeReduction + (length? head inBuffer) - length? head outBuffer 
-            head outBuffer
-        ] 
-        optimize-processLines: func [usedLineIds /local linesMap i LineStyles joinStyle hasFill?] [
-            alignBuffers 
-            linesMap: copy [] 
-            writeCount length? usedLineIds 
-            i: 0 
-            loop readCount [
-                alignBuffers 
-                either find usedLineIds i: i + 1 [
-                    append linesMap i 
-                    optimizeLINESTYLE
-                ] [
-                    skipLINESTYLE
-                ]
-            ] 
-            alignBuffers 
-            linesMap
-        ] 
-        optimize-processFills: func [usedFillIds /local i fillMap type id] [
-            fillMap: copy [] 
-            writeCount length? usedFillIds 
-            i: 0 
-            loop readCount [
-                alignBuffers 
-                either find usedFillIds i: i + 1 [
-                    append fillMap i 
-                    optimizeFILLSTYLE
-                ] [
-                    skipFILLSTYLE
-                ]
-            ] 
-            alignBuffers 
-            fillMap
-        ] 
-        optimize-writeBBshape: func [bounds /local minx miny maxx maxy] [
-            set [minx maxx miny maxy] bounds 
-            print reform ["USING BBShape" mold bounds] 
-            writeBit false 
-            writeUB 3 5 
-            writeSBPair reduce [minx miny] 
-            writeUB 1 numFillBits 
-            writeBit true 
-            writeBit true 
-            writeUB (nBits: to integer! log-2 tmp: (maxx - minx)) 4 
-            nBits: nBits + 2 
-            writeBit false 
-            writeBit false 
-            writeSB tmp nBits 
-            writeBit true 
-            writeBit true 
-            writeUB (nBits: to integer! log-2 tmp: (maxy - miny)) 4 
-            nBits: nBits + 2 
-            writeBit false 
-            writeBit true 
-            writeSB tmp nBits 
-            writeBit true 
-            writeBit true 
-            writeUB (nBits: to integer! log-2 abs tmp: (minx - maxx)) 4 
-            nBits: nBits + 2 
-            writeBit false 
-            writeBit false 
-            writeSB tmp nBits 
-            writeBit true 
-            writeBit true 
-            writeUB (nBits: to integer! log-2 abs tmp: (miny - maxy)) 4 
-            nBits: nBits + 2 
-            writeBit false 
-            writeBit true 
-            writeSB tmp nBits
-        ] 
-        updateCombinedBmpMATRIX: func [id /local ofs sc ro pos] [
-            either ofs: select data/combined-bitmaps id [
-                alignBuffers 
-                either carryBitLogic [
-                    writePair sc: readPair
-                ] [sc: 0x0] 
-                either carryBitLogic [
-                    writePair ro: readPair
-                ] [ro: 0x0] 
-                pos: readSBPair 
-                writeSBPair probe reduce [
-                    round (pos/1 - ((ofs/x * sc/1) + (ofs/y * ro/2))) 
-                    round (pos/2 - ((ofs/y * sc/2) + (ofs/x * ro/1)))
-                ] 
-                alignBuffers
-            ] [
-                carryMATRIX
-            ]
-        ] 
-        updateBmpMATRIX: func [id /local size pos sc ro] [
-            either any [
-                none? size: select data/crops id
-            ] [
-                carryMATRIX
-            ] [
-                alignBuffers 
-                either carryBitLogic [
-                    writePair sc: readPair
-                ] [sc: 0x0] 
-                either carryBitLogic [
-                    writePair ro: readPair
-                ] [ro: 0x0] 
-                pos: readSBPair 
-                writeSBPair reduce [
-                    round (pos/1 + ((size/5 * sc/1) + (size/6 * ro/2))) 
-                    round (pos/2 + ((size/6 * sc/2) + (size/5 * ro/1)))
-                ] 
-                alignBuffers
-            ]
-        ] 
-        optimizeFILLSTYLE: has [type id newid] [
-            alignBuffers 
-            writeUI8 type: readUI8 
-            case [
-                type = 0 [
-                    case [
-                        find [46 84] tagId [
-                            carryBytes 8
-                        ] 
-                        tagId >= 32 [carryBytes 4] 
-                        true [carryBytes 3]
-                    ]
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    either find [46 84] tagId [
-                        carryMATRIX 
-                        carryMATRIX 
-                        byteAlign 
-                        loop carryUI8 [
-                            carryBytes 10
-                        ]
-                    ] [
-                        carryMATRIX 
-                        byteAlign 
-                        carryBits 4 
-                        loop carryUB 4 [
-                            carryBytes either tagId >= 32 [5] [4]
-                        ] 
-                        if all [type = 19 tagId = 83] [carryBytes 2]
-                    ]
-                ] 
-                type >= 64 [
-                    reduce either find [46 84] tagId [
-                        id: readUI16 
-                        either find first data 'combined-bitmaps [
-                            either find data/combined-bitmaps id [
-                                writeUI16 data/combined-bmp-id 
-                                updateCombinedBmpMATRIX id 
-                                updateCombinedBmpMATRIX id
-                            ] [
-                                writeUI16 id 
-                                carryMATRIX 
-                                carryMATRIX
-                            ]
-                        ] [
-                            writeUI16 id 
-                            updateBmpMATRIX id 
-                            updateBmpMATRIX id
-                        ]
-                    ] [
-                        id: readUI16 
-                        either find first data 'combined-bitmaps [
-                            either find data/combined-bitmaps id [
-                                writeUI16 data/combined-bmp-id 
-                                updateCombinedBmpMATRIX id
-                            ] [
-                                writeUI16 id 
-                                carryMATRIX
-                            ]
-                        ] [
-                            writeUI16 id 
-                            updateBmpMATRIX id
-                        ]
-                    ]
-                ]
-            ]
-        ] 
-        optimizeLINESTYLE: has [joinStyle hasFill?] [
-            alignBuffers 
-            case [
-                tagId = 46 [
-                    carryBytes 12
-                ] 
-                any [tagId = 67 tagId = 83] [
-                    carryBytes 2 
-                    carryBits 2 
-                    joinStyle: carryUB 2 
-                    hasFill?: carryBitLogic 
-                    carryBits 11 
-                    if joinStyle = 2 [carryBytes 2] 
-                    either hasFill? [optimizeFILLSTYLE] [carryBytes 4]
-                ] 
-                tagId = 84 [
-                    carryBytes 4 
-                    carryBits 2 
-                    joinStyle: carryUB 2 
-                    hasFill?: carryBitLogic 
-                    carryBits 11 
-                    if joinStyle = 2 [carryBytes 2] 
-                    either hasFill? [optimizeFILLSTYLE] [carryBytes 8]
-                ] 
-                true [
-                    carryBytes either tagId = 32 [6] [5]
-                ]
-            ]
-        ] 
-        skipFILLSTYLE: has [type id] [
-            alignBuffers 
-            type: readUI8 
-            case [
-                type = 0 [
-                    case [
-                        find [46 84] tagId [
-                            skipBytes 8
-                        ] 
-                        tagId >= 32 [skipBytes 4] 
-                        true [skipBytes 3]
-                    ]
-                ] 
-                any [
-                    type = 16 
-                    type = 18 
-                    type = 19
-                ] [
-                    either find [46 84] tagId [
-                        readMATRIX 
-                        readMATRIX 
-                        byteAlign 
-                        loop readUI8 [
-                            skipBytes 10
-                        ]
-                    ] [
-                        readMATRIX 
-                        byteAlign 
-                        skipBits 4 
-                        loop readUB 4 [
-                            skipBytes either tagId >= 32 [5] [4]
-                        ] 
-                        if all [type = 19 tagId = 83] [skipBytes 2]
-                    ]
-                ] 
-                type >= 64 [
-                    reduce either find [46 84] tagId [
-                        skipUI16 
-                        readMATRIX 
-                        readMATRIX
-                    ] [
-                        skipUI16 
-                        readMATRIX
-                    ]
-                ]
-            ]
-        ] 
-        skipLINESTYLE: has [] [
-            alignBuffers 
-            case [
-                tagId = 46 [
-                    skipBytes 12
-                ] 
-                any [tagId = 67 tagId = 83] [
-                    skipBytes 2 
-                    skipBits 2 
-                    joinStyle: readUB 2 
-                    hasFill?: readBitLogic 
-                    skipBits 11 
-                    if joinStyle = 2 [skipBytes 2] 
-                    either hasFill? [skipFILLSTYLE] [skipBytes 4]
-                ] 
-                tagId = 84 [
-                    skipBytes 4 
-                    skipyBits 2 
-                    joinStyle: readUB 2 
-                    hasFill?: readBitLogic 
-                    skipBits 11 
-                    if joinStyle = 2 [skipBytes 2] 
-                    either hasFill? [skipFILLSTYLE] [skipBytes 8]
-                ] 
-                true [
-                    skipBytes either tagId = 32 [6] [5]
-                ]
-            ]
-        ] 
-        comment "---- end of include %parsers/swf-optimize.r ----" 
-        comment {
-#### Include: %parsers/swf-combine-bmps.r
-#### Title:   ""
-#### Author:  ""
-----} 
-        combine-updateShape: has [id bounds end?] [
-            id: carryUI16 
-            writeRect bounds: readRect 
-            if tagId >= 67 [
-                writeRect readRect 
-                carryBytes 1
-            ] 
-            alignBuffers 
-            loop carryCount [
-                alignBuffers 
-                optimizeFILLSTYLE
-            ] 
-            loop carryCount [
-                alignBuffers 
-                optimizeLINESTYLE
-            ] 
-            numFillBits: carryUB 4 
-            numLineBits: carryUB 4 
-            end?: false 
-            until [
-                until [
-                    either carryBitLogic [
-                        either carryBitLogic [
-                            nBits: 2 + carryUB 4 
-                            either carryBitLogic [
-                                carrySB nBits 
-                                carrySB nBits
-                            ] [
-                                carryBitLogic 
-                                carrySB nBits
-                            ]
-                        ] [
-                            nBits: 2 + carryUB 4 
-                            carrySB nBits 
-                            carrySB nBits 
-                            carrySB nBits 
-                            carrySB nBits
-                        ] 
-                        false
-                    ] [
-                        states: carryUB 5 
-                        either states = 0 [
-                            alignBuffers 
-                            end?: 
-                            true
-                        ] [
-                            if 0 < (states and 1) [
-                                carrySBPair
-                            ] 
-                            if 0 < (states and 2) [
-                                carryUB numFillBits
-                            ] 
-                            if 0 < (states and 4) [
-                                carryUB numFillBits
-                            ] 
-                            if 0 < (states and 8) [
-                                carryUB numLineBits
-                            ] 
-                            if 0 < (states and 16) [
-                                alignBuffers 
-                                loop carryCount [
-                                    alignBuffers 
-                                    optimizeFILLSTYLE
-                                ] 
-                                loop carryCount [
-                                    alignBuffers 
-                                    optimizeLINESTYLE
-                                ] 
-                                numFillBits: carryUB 4 
-                                numLineBits: carryUB 4 
-                                break
-                            ] 
-                            false
-                        ]
-                    ]
-                ] 
-                end?
-            ] 
-            alignBuffers 
-            head outBuffer
-        ] 
-        comment {---- end of include %parsers/swf-combine-bmps.r ----}
-    ] 
-    comment "---- end of include %swf-tag-parser.r ----"
-] 
-save-jpgs: func [[catch] swf-file /local tmpdata swfDir swfName jpegTables] [
-    swfName: copy find/last/tail swf-file #"/" 
-    unless swfDir: export-dir [
-        swfDir: either url? swf-file [
-            what-dir
-        ] [first split-path swf-file]
-    ] 
-    probe swfDir: rejoin [swfDir swfName %_export/] 
-    if not exists? swfDir [make-dir/deep swfDir] 
-    swf-parser/swf-tag-parser/swfDir: swfDir 
-    if not error? try [
-        swfName: copy/part swfname find/last swfname %.swf
-    ] [
-        exam-swf/file/parseActions/only swf-file [
-            6 [
-                tmpdata: parse-DefineBits 
-                write/binary rejoin [swfDir swfname %_id tmpdata/1 %.jpg] join jpegTables skip tmpdata/2 2 
-                tmpdata
-            ] 
-            8 [
-                jpegTables: parse-JPEGTables 
-                head remove/part skip tail jpegTables -2 2
-            ] 
-            21 [
-                tmpdata: parse-DefineBitsJPEG2 
-                write/binary probe rejoin [swfDir %tag21 %_id tmpdata/1 %.jpg] tmpdata/2 
-                tmpdata
-            ] 
-            35 [
-                tmpdata: parse-DefineBitsJPEG3 
-                replace tmpdata/2 #{FFD9FFD8} #{} 
-                write/binary rejoin [swfdir swfname %_id tmpdata/1 %.jpg] tmpdata/2 
-                alphaimg: make image! jpg-size tmpdata/2 
-                alphaimg/alpha: as-binary zlib-decompress tmpdata/3 (alphaimg/size/1 * alphaimg/size/2) 
-                save/png rejoin [swfdir swfname %_id tmpdata/1 %.png] alphaimg 
-                tmpdata
-            ] 
-            39 [parse-DefineSprite]
-        ] [6 8 20 21 35 36 39]
-    ]
-] 
-save-mp3-samples: func [swf-file /local tmpdata swfDir swfName jpegTables] [
-    swfName: copy find/last/tail swf-file #"/" 
-    unless swfDir: export-dir [
-        swfDir: either url? swf-file [
-            what-dir
-        ] [first split-path swf-file]
-    ] 
-    print ".." 
-    probe swfDir: rejoin [swfDir swfName %_export/] 
-    if not exists? swfDir [make-dir/deep swfDir] 
-    swf-parser/swf-tag-parser/swfDir: swfDir 
-    exam-swf/file/parseActions/only probe swf-file [
-        14 [
-            print "..sound..." 
-            tmpdata: parse-DefineSound 
-            if tmpdata/2 = 2 [
-                print tmpdata/1 
-                write/binary rejoin [swfdir swfname %_id tmpdata/1 %.mp3] tmpdata/7
-            ] 
-            tmpdata
-        ]
-    ] [14]
-] 
-comment "---- end of RS include %swf-parser.r ----" 
-system/options/binary-base: 16 
-ctx-form-timeline: context [
-    shapes: copy [] 
-    bitmaps: copy [] 
-    sounds: copy [] 
-    sprites: copy [] 
-    names: copy [] 
-    types: copy [] 
-    offsets: copy [] 
-    replaced-sprites: copy [] 
-    sprite-images: copy [] 
-    usage-counter: copy [] 
-    analyse-shape: func [
-        data [block!] "Parsed SWF Shape data" 
-        /local 
-        id bounds edge shape 
-        FillStyles LineStyles ShapeRecords 
-        fill 
-        name 
-        style
-    ] [
-        set [id bounds edge shape] data 
-        set [FillStyles LineStyles ShapeRecords] shape 
-        forall FillStyles [
-            style: FillStyles/1 
-            if style/2/1 = 65535 [
-                remove FillStyles
-            ]
-        ] 
-        FillStyles: head FillStyles 
-        forall LineStyles [
-            style: LineStyles/1 
-            if style/2/1 = 65535 [
-                remove LineStyles
-            ]
-        ] 
-        LineStyles: head LineStyles 
-        fill: FillStyles/1 
-        either all [
-            fill 
-            fill/1 >= 64 
-            name: select names fill/2/1
-        ] [
-            repend names [id name] 
-            repend types [id 'image] 
-            either all [
-                ShapeRecords/2/1 
-                ShapeRecords/2/1/1 = fill/2/2/3/1 
-                ShapeRecords/2/1/2 = fill/2/2/3/2
-            ] [
-                repend/only repend offsets id reduce [bounds/1 bounds/3]
-            ] [
-                repend/only repend offsets id fill/2/2/3
-            ] 
-            print ["^-Image instead of shape:" id mold name]
-        ] [
-            result: copy "" 
-            parse/all ShapeRecords [any [
-                    'style set style block! (
-                        if all [
-                            style/4 
-                            tmp: pick LineStyles style/4
-                        ] [
-                            result: insert result reform ["^-lineStyle" tmp/1 tmp/4 "^/"]
-                        ] 
-                        if tmp: style/1 [
-                            result: insert result reform ["^-moveTo" tmp/1 tmp/2 "^/"]
-                        ]
-                    ) 
-                    | 
-                    'curve copy tmp some integer! (
-                        result: insert result reform ["^-curve" mold tmp "^/"]
-                    ) 
-                    | 
-                    'line copy tmp some integer! (
-                        result: insert result reform ["^-line" mold tmp "^/"]
-                    )
-                ]] 
-            result: head result 
-            repend types [id 'shape] 
-            repend shapes [id result]
-        ]
-    ] 
-    analyse-sprite: func [
-        data [block!] "Parsed SWF Sprite data" 
-        /local 
-        id frames tags 
-        tag tagId tagData matrix 
-        name 
-        result 
-        offset
-    ] [
-        set [id frames tags] data 
-        either frames = 1 [
-            tag: tags/1 
-            tagId: tag/1 
-            tagData: tag/2 
-            matrix: tagData/4 
-            either all [
-                false 
-                3 = length? tags 
-                tagId = 26 
-                name: select names tagData/3 
-                all [
-                    none? matrix/1 
-                    none? matrix/2 
-                    matrix/3/1 = 0 
-                    matrix/3/2 = 0
-                ]
-            ] [
-                repend names [id name] 
-                repend types [id 'image] 
-                if offset: select offsets tagData/3 [
-                    repend/only repend offsets id offset
-                ] 
-                print ["^-Image instead of sprite:" id mold name mold tag]
-            ] [
-                form-sprite-tags id frames tags
-            ]
-        ] [
-            form-sprite-tags id frames tags
-        ]
-    ] 
-    form-sprite-tags: func [
-        id frames tags 
-        /local 
-        result 
-        tagId tagData offset 
-        tmp 
-        depth move cid ids attributes oldAttributes colorAtts 
-        maxDepth depths-replaced depths-to-remove ids-at-depth currentFrame
-    ] [
-        result: tail rejoin ["^-TotalFrames " frames "^/"] 
-        maxDepth: 0 
-        currentFrame: 1 
-        depth-to-id: copy [] 
-        depth-attributes: copy [] 
-        ids: copy [] 
-        ids-at-depth: copy [] 
-        depths: copy [] 
-        foreach tag tags [
-            tagId: tag/1 
-            tagData: tag/2 
-            switch/default tagId [
-                26 70 [
-                    set [depth move cid attributes colorAtts] tagData 
-                    if tmp: find replaced-sprites cid [
-                        cid: sprite-images/(index? tmp)
-                    ] 
-                    either tmp: find depths depth [
-                        realDepth: index? tmp
-                    ] [
-                        realDepth: none 
-                        forall depths [
-                            if depths/1 > depth [
-                                realDepth: index? depths 
-                                insert depths depth 
-                                break
-                            ]
-                        ] 
-                        depths: head depths 
-                        if none? realDepth [
-                            append depths depth 
-                            realDepth: length? depths
-                        ]
-                    ] 
-                    if none? attributes [
-                        attributes: any [
-                            select depth-attributes depth 
-                            [none none [0 0]]
-                        ]
-                    ] 
-                    either oldAttributes: select depth-attributes depth [
-                        either all [move none? cid] [
-                            foreach att attributes [
-                                if att [
-                                    change/only oldAttributes att
-                                ] 
-                                oldAttributes: next oldAttributes
-                            ] 
-                            attributes: oldAttributes: head oldAttributes
-                        ] [
-                            depth-attributes/(depth): attributes
-                        ]
-                    ] [
-                        if all [move none? cid] [
-                        ] 
-                        repend/only repend depth-attributes depth attributes
-                    ] 
-                    if offset: select offsets cid [
-                        attributes/3/1: attributes/3/1 + offset/1 
-                        attributes/3/2: attributes/3/2 + offset/2
-                    ] 
-                    either cid [
-                        append usage-counter cid 
-                        result: insert result rejoin [
-                            either move ["^-Replace "] ["^-Place "] (select types cid) 
-                            #" " cid 
-                            #" " realDepth 
-                            mold/all attributes 
-                            either colorAtts [mold/all colorAtts] [""] 
-                            #"^/"
-                        ]
-                    ] [
-                        result: insert result rejoin [
-                            "^-Move " 
-                            realDepth #" " 
-                            mold/all attributes 
-                            either colorAtts [mold/all colorAtts] [""] 
-                            #"^/"
-                        ]
-                    ]
-                ] 
-                28 [
-                    depth: tagData 
-                    realDepth: index? tmp: find depths depth 
-                    remove tmp 
-                    remove/part find depth-attributes depth 2 
-                    result: insert result rejoin [
-                        "^-Remove " realDepth #"^/"
-                    ]
-                ] 1 [
-                    result: insert result ajoin ["^-ShowFrame ;" currentFrame "^/"] 
-                    currentFrame: currentFrame + 1
-                ] 
-                43 [
-                    result: insert result rejoin ["^-Label " mold as-string tagData "^/"]
-                ] 
-                45 [
-                ] 
-                15 [
-                    result: insert result rejoin ["^-Sound " tagData/1 " " mold tagData/2 "^/"] 
-                    append usage-counter tagData/1
-                ] 
-                12 [
-                ] 0 []
-            ] [
-                ask reform ["Unknown tag" tagId "!"]
-            ]
-        ] 
-        either all [
-            false 1 = frames 1 = length? depths 
-            'image = (select types cid) 
-            none? attributes/1 
-            none? attributes/2 0 = attributes/3/1 0 = attributes/3/2 
-            none? colorAtts
-        ] [
-            append replaced-sprites id 
-            append sprite-images cid 
-            print ["^-Image instead of sprite:" id mold name cid]
-        ] [
-            append usage-counter id 
-            repend types [id 'object] 
-            result: head result 
-            repend sprites [id reduce [frames result]]
-        ]
-    ] 
-    set 'form-timeline func [
-        src-swf [file!] 
-        /local tags tagId tagData parsed
-    ] [
-        clear shapes 
-        clear bitmaps 
-        clear sprites 
-        clear names 
-        clear types 
-        clear offsets 
-        clear usage-counter 
-        with swf-parser/swf-tag-parser [
-            verbal?: false 
-            parseActions: swf-parser/swfTagParseActions
-        ] 
-        tags: extract-swf-tags src-swf [
-            2 22 32 67 83 
-            39 
-            56 
-            14
-        ] 
-        foreach [tagId tagData] tags [
-            parsed: parse-swf-tag tagId tagData 
-            switch tagId [
-                2 22 32 67 83 [
-                    analyse-shape parsed
-                ] 
-                39 [
-                    analyse-sprite parsed
-                ] 
-                43 [
-                    print "" 
-                    probe as-string parsed
-                ] 
-                56 [
-                    foreach [id name] parsed [
-                        replace/all name "_" "/" 
-                        parse/all name ["Bitmaps/" copy name to end] 
-                        repend names [id as-string name]
-                    ]
-                ] 
-                14 [
-                    probe parsed 
-                    ask "" 
-                    repend types [parsed/1 'sound]
-                ]
-            ]
-        ] 
-        code: copy "" 
-        foreach [id name] names [
-            if find usage-counter id [
-                append code reform ["Name" id mold name "^/"]
-            ]
-        ] 
-        print code 
-        foreach [id def] shapes [
-            print ["shape" id] 
-            append code ajoin ["Shape " id " [^/" def "]^/"]
-        ] 
-        foreach [id def] sprites [
-            print ["sprite" id] 
-            append code rejoin [
-                either def/1 = 1 ["Sprite "] ["Movie "] 
-                id " [^/" def/2 "]^/"
-            ]
-        ] 
-        write head change find/last src-swf "." ".txt" code
-    ]
-] 
-comment "---- end of RS include %form-timeline.r ----" 
-with: func [obj body] [do bind body obj] 
-ctx-pack-assets: context [
-    dirBinUtils: %./Utils/ 
-    dirAssetsRoot: %./Assets/ 
-    dirPacks: join dirAssetsRoot %Packs/ 
-    comment {
-^-^-Required utils can be found here:
-^-^-^-http://code.google.com/p/libgdx/wiki/TexturePacker
-^-^-^-http://code.google.com/p/libgdx/downloads/list
-^-^-^-http://pngquant.org/
-^-} 
-    texturePacker: {./Utils/gdx.jar:./Utils/gdx-tools.jar com.badlogic.gdx.tools.imagepacker.TexturePacker2} 
-    pngQuantExe: dirBinUtils/pngquant 
-    if system/version/4 = 3 [append pngQuantExe %.exe] 
-    chNotSpace: complement charset "^/^- " 
-    chDigits: charset "0123456789" 
-    cmdUseLevel: 1 
-    cmdLoadTexture: 2 
-    cmdInitTexture: 3 
-    cmdDefineImage: 4 
-    cmdStartMovie: 5 
-    cmdAddMovieTexture: 6 
-    cmdAddMovieTextureWithFrame: 7 
-    cmdEndMovie: 8 
-    cmdLoadSWF: 9 
-    cmdInitSWF: 10 
-    cmdATFTexture: 11 
-    cmdATFTextureMovie: 12 
-    cmdTimelineObject: 13 
-    cmdTimelineName: 14 
-    cmdTimelineShape: 15 
-    cmdStartMovie2: 16 
-    cmdLineStyle: 1 
-    cmdMoveTo: 2 
-    cmdCurve: 3 
-    cmdLine: 4 
-    cmdPlace: 1 
-    cmdMove: 2 
-    cmdRemove: 3 
-    cmdLabel: 4 
-    cmdReplace: 5 
-    cmdSound: 6 
-    cmdShowFrame: 128 
-    out: make stream-io [] 
-    write-bitmap-assets: func [
-        level [any-string!] "Lavel's name" 
-        name [any-string!] "Per level texture sheet's name" 
-        /local 
-        srcDir 
-        packFile 
-        rlPair 
-        data 
-        regions 
-        sequences 
-        bitmapName 
-        imgFile partId x y xy size orig offset index var value
-    ] [
-        srcDir: rejoin [dirAssetsRoot %Bitmaps/ level #"/" name] 
-        packFile: join name %.pack 
-        unless exists? dirPacks/:packFile [
-            if 0 < call/wait/console probe reform [
-                "java -classpath" texturePacker 
-                to-local-file srcDir 
-                to-local-file dirPacks 
-                packFile
-            ] [
-                print "Packing failed!" 
-                halt
-            ]
-        ] 
-        imgFile: none 
-        partId: none 
-        regions: none 
-        sequences: none 
-        data: copy [] 
-        rlPair: [copy x some chDigits ", " copy y some chDigits (value: as-pair to-integer x to-integer y) #"^/"] 
-        parse/all read dirPacks/:packFile [
-            some [
-                #"^/" [
-                    copy imgFile to #"^/" 1 skip (
-                        probe imgFile print "========================" 
-                        bitmapName: uppercase/part replace/all copy imgFile "." "_" 1 
-                        regions: copy [] 
-                        sequences: copy [] 
-                        repend data [imgFile bitmapName regions sequences]
-                    ) 
-                    thru #"^/" 
-                    thru #"^/" 
-                    thru #"^/" 
-                    some [
-                        some [
-                            "  " [
-                                "xy: " copy xy to #"^/" 1 skip 
-                                "  size: " copy size to #"^/" 1 skip 
-                                "  orig: " copy orig to #"^/" 1 skip 
-                                "  offset: " copy offset to #"^/" 1 skip 
-                                "  index: " copy index to #"^/" 1 skip 
-                                (
-                                    index: to-integer index 
-                                    either index < 0 [
-                                        if offset <> "0, 0" [
-                                            ask reform ["!! Found trimed image" mold partId "offset:" offset]
-                                        ] 
-                                        repend regions [partId xy size]
-                                    ] [
-                                        sequence: select sequences partId 
-                                        if none? sequence [
-                                            append sequences partId 
-                                            append/only sequences sequence: copy []
-                                        ] 
-                                        repend sequence [index xy size orig offset]
-                                    ]
-                                ) 
-                                | copy var to #":" 2 skip copy value to #"^/" 1 skip
-                            ]
-                        ] 
-                        | 
-                        copy partId [some chNotSpace to #"^/"] thru #"^/"
-                    ]
-                ]
-            ]
-        ] 
-        if regions [
-            sort/skip/reverse regions 3 
-            new-line/skip regions true 3
-        ] 
-        foreach [imgFile bitmapName regions sequences] data [
-            foreach [partId xy size] regions [
-                xy: load trim/all/with xy "," 
-                size: load trim/all/with size "," 
-                out/writeUI8 cmdDefineImage 
-                out/writeUTF partId 
-                out/writeUI16 xy/1 
-                out/writeUI16 xy/2 
-                out/writeUI16 size/1 
-                out/writeUI16 size/2
-            ] 
-            unless empty? sequences [
-                foreach [id sequence] sequences [
-                    print ["Sequence" mold id "with length" ((length? sequence) / 5)] 
-                    sort/skip sequence 5 
-                    out/writeUI8 cmdStartMovie2 
-                    out/writeUTF id 
-                    foreach [index xy size orig offs] sequence [
-                        xy: load trim/all/with xy "," 
-                        size: load trim/all/with size "," 
-                        orig: load trim/all/with orig "," 
-                        offs: load trim/all/with offs "," 
-                        out/writeUI8 cmdAddMovieTextureWithFrame 
-                        out/writeUI16 xy/1 
-                        out/writeUI16 xy/2 
-                        out/writeUI16 size/1 
-                        out/writeUI16 size/2 
-                        out/writeUI16 - offs/1 
-                        out/writeUI16 size/2 - orig/2 + offs/2 
-                        out/writeUI16 orig/1 
-                        out/writeUI16 orig/2
-                    ] 
-                    out/writeUI8 cmdEndMovie
-                ]
-            ]
-        ]
-    ] 
-    has-atf-version: func [
-        atf-type "Required ATF file extension (%dxt or %etc)" 
-        file [any-string!] "Name of the bitmap file without extension" 
-        /local 
-        origFile 
-        imageFile
-    ] [
-        origFile: rejoin [dirPacks file %.png] 
-        all [
-            atf-type 
-            any [
-                all [
-                    exists? imageFile: rejoin [file #"." atf-type] 
-                    (modified? imageFile) > (modified? origFile)
-                ] 
-                (
-                    switch/default atf-type [
-                        %dxt [
-                            call/wait/console probe rejoin [
-                                dirBinUtils " PVRTexTool.exe -m -yflip0 -f DXT5 -dds" 
-                                " -i " to-local-file origFile 
-                                " -o " to-local-file file ".dds"
-                            ] 
-                            call/wait/console probe rejoin [
-                                dirBinUtils " dds2atf.exe -2" 
-                                " -i " to-local-file file ".dds" 
-                                " -o " to-local-file imageFile
-                            ] 
-                            true
-                        ] 
-                        %etc [
-                            call/wait/console probe rejoin [
-                                dirBinUtils " png2atf.exe -c e -2" 
-                                " -i " to-local-file file ".png" 
-                                " -o " to-local-file imageFile
-                            ] 
-                            true
-                        ]
-                    ] [false]
-                )
-            ]
-        ]
-    ] 
-    set 'make-packs func [
-        level [any-string!] "Level's ID" 
-        /atf atf-type {ATF extension which could be used for bitmap compression (dxt or etc)} 
-        /local 
-        sourceDir 
-        sourceSWF 
-        sourceTXT 
-        bin 
-        indx 
-        origImageFile 
-        imageFile 
-        name 
-        xml 
-        x y width height frameX frameY frameWidth frameHeight
-    ] [
-        either dirAssetsRoot [
-            dirAssetsRoot: to-file dirAssetsRoot 
-            if #"/" <> pick dirAssetsRoot 1 [insert dirAssetsRoot what-dir]
-        ] [make error! "Unspecified dirAssetsRoot"] 
-        either dirBinUtils [
-            dirBinUtils: to-file dirBinUtils 
-            if #"/" <> pick dirBinUtils 1 [insert dirBinUtils what-dir]
-        ] [make error! "Unspecified dirBinUtils"] 
-        if all [atf-type none? find [%dxt %etc] atf-type] [atf-type: none] 
-        out/clearBuffers 
-        out/writeBytes as-binary "LVL" 
-        out/writeUI8 cmdUseLevel 
-        out/writeUTF probe level 
-        sourceDir: dirize rejoin [dirAssetsRoot %Bitmaps/ level] 
-        if exists? sourceDir [
-            foreach dir read sourceDir [
-                if all [
-                    #"/" = last dir 
-                    #"_" <> first dir
-                ] [
-                    remove back tail dir 
-                    indx: index? out/outBuffer 
-                    write-bitmap-assets level dir 
-                    out/outBuffer: at head out/outBuffer indx 
-                    origImageFile: rejoin [dirPacks dir %.png] 
-                    any [
-                        has-atf-version atf-type dir 
-                        all [
-                            exists? imageFile: rejoin [dirPacks dir %-fs8.png] 
-                            any [
-                                (modified? imageFile) > (modified? origImageFile) 
-                                (
-                                    delete imageFile 
-                                    call/wait/console probe rejoin [
-                                        to-local-file pngQuantExe " " 
-                                        to-local-file join what-dir origImageFile
-                                    ] 
-                                    true
-                                )
-                            ]
-                        ] 
-                        exists? imageFile: origImageFile
-                    ] 
-                    bin: read/binary probe imageFile 
-                    either atf-type [
-                        out/writeUI8 cmdATFTexture 
-                        out/writeUI32 length? bin 
-                        out/writeBytes bin
-                    ] [
-                        out/writeUI8 cmdLoadTexture 
-                        out/writeUI32 length? bin 
-                        out/writeBytes bin 
-                        out/writeUI8 cmdInitTexture
-                    ] 
-                    out/writeUTF dir 
-                    out/outBuffer: tail out/outBuffer
-                ]
-            ]
-        ] 
-        sourceDir: dirize rejoin [dirAssetsRoot %Starling/ level] 
-        if exists? sourceDir [
-            foreach file read sourceDir [
-                if all [
-                    parse file [copy name to ".xml" 4 skip end] 
-                    any [
-                        has-atf-version atf-type join sourceDir name 
-                        exists? imageFile: rejoin [sourceDir name %-fs8.png] 
-                        exists? imageFile: rejoin [sourceDir name %.png]
-                    ]
-                ] [
-                    bin: read/binary probe imageFile 
-                    either atf-type [
-                        out/writeUI8 cmdATFTextureMovie 
-                        out/writeUI32 length? bin 
-                        out/writeBytes bin
-                    ] [
-                        out/writeUI8 cmdLoadTexture 
-                        out/writeUI32 length? bin 
-                        out/writeBytes bin 
-                        out/writeUI8 cmdStartMovie
-                    ] 
-                    out/writeUTF name 
-                    xml: read/binary sourceDir/:file 
-                    replace/all xml "^@" "" 
-                    parse/all xml [
-                        any [
-                            thru {<SubTexture name="} copy name to {"} 
-                            thru {x="} copy x to {"} 
-                            thru {y="} copy y to {"} 
-                            thru {width="} copy width to {"} 
-                            thru {height="} copy height to {"} 
-                            thru {frameX="} copy frameX to {"} 
-                            thru {frameY="} copy frameY to {"} 
-                            thru {frameWidth="} copy frameWidth to {"} 
-                            thru {frameHeight="} copy frameHeight to {"} 
-                            (
-                                out/writeUI8 cmdAddMovieTextureWithFrame 
-                                out/writeUI16 to-integer x 
-                                out/writeUI16 to-integer y 
-                                out/writeUI16 to-integer width 
-                                out/writeUI16 to-integer height 
-                                out/writeUI16 to-integer frameX 
-                                out/writeUI16 to-integer frameY 
-                                out/writeUI16 to-integer frameWidth 
-                                out/writeUI16 to-integer frameHeight
-                            )
-                        ]
-                    ] 
-                    out/writeUI8 cmdEndMovie
-                ]
-            ]
-        ] 
-        sourceDir: dirize rejoin [dirAssetsRoot %SWFs/ level] 
-        if exists? sourceDir [
-            foreach file read sourceDir [
-                if all [
-                    parse file [copy name to ".swf" 4 skip end]
-                ] [
-                    bin: read/binary probe rejoin [sourceDir file] 
-                    out/writeUI8 cmdLoadSWF 
-                    out/writeUTF name 
-                    out/writeUI32 length? bin 
-                    out/writeBytes bin 
-                    out/writeUI8 cmdInitSWF
-                ]
-            ]
-        ] 
-        sourceSWF: rejoin [dirAssetsRoot %TimelineSWFs/ level %.swf] 
-        sourceTXT: rejoin [dirAssetsRoot %TimelineSWFs/ level %.txt] 
-        if exists? sourceSWF [
-            indx: index? out/outBuffer 
-            if any [
-                not exists? sourceTXT 
-                (modified? sourceTXT) < (modified? sourceSWF)
-            ] [
-                form-timeline sourceSWF
-            ] 
-            parse-timeline sourceTXT 
-            print ["Timeline bytes:" (index? out/outBuffer) - indx]
-        ] 
-        out/writeUI8 0 
-        write/binary join %./bin/ rejoin either atf-type [
-            [uppercase atf-type "/" level %.lvl]
-        ] [
-            [%Data/ level %.lvl]
-        ] head out/outBuffer
-    ] 
-    parse-timeline: func [
-        file [file!] "Formed timeline specification" 
-        /local 
-        type id data name 
-        indx
-    ] [
-        print ["====== parse-timeline "] 
-        parse/all load file [
-            any [
-                set type ['Movie | 'Sprite] set id integer! set data block! (
-                    out/writeUI8 cmdTimelineObject 
-                    out/writeUI16 id 
-                    indx: index? out/outBuffer 
-                    parse-controlTags data 
-                    out/writeUI8 0 
-                    out/outBuffer: at head out/outBuffer indx 
-                    out/writeUI32 length? out/outBuffer 
-                    out/outBuffer: tail out/outBuffer
-                ) 
-                | 
-                'Name set id integer! set name string! (
-                    out/writeUI8 cmdTimelineName 
-                    out/writeUI16 id 
-                    out/writeUTF name
-                ) 
-                | 
-                'Shape set id integer! set data block! (
-                    comment {
-^-^-^-^-^-out/writeUI8  cmdTimelineShape
-^-^-^-^-^-out/writeUI16 id
-^-^-^-^-^-indx: index? out/outBuffer
-^-^-^-^-^-parse-ShapeDefinition data
-^-^-^-^-^-out/outBuffer: at head out/outBuffer indx
-^-^-^-^-^-out/writeUI32 length? out/outBuffer
-^-^-^-^-^-out/outBuffer: tail out/outBuffer
-^-^-^-^-^-}
-                )
-            ]
-        ]
-    ] 
-    write-transform: func [
-        transform color flags 
-        /local 
-        colorMult hasColorMult removeTint alpha
-    ] [
-        if transform/1 [flags: flags or 8] 
-        if transform/2 [flags: flags or 16] 
-        if color [
-            either block? colorMult: color/1 [
-                flags: flags or 32 
-                alpha: colorMult/4 
-                if any [
-                    colorMult/1 <> 256 
-                    colorMult/2 <> 256 
-                    colorMult/3 <> 256
-                ] [
-                    flags: flags or 64 
-                    hasColorMult: true
-                ]
-            ] [
-                flags: flags or 64 
-                colorMult: [255 255 255] 
-                hasColorMult: true
-            ]
-        ] 
-        out/writeUI8 flags 
-        either transform/3 [
-            out/writeFloat transform/3/1 / 20 
-            out/writeFloat transform/3/2 / 20
-        ] [
-            out/writeFloat 0 
-            out/writeFloat 0
-        ] 
-        if transform/1 [
-            out/writeFloat transform/1/1 
-            out/writeFloat transform/1/2
-        ] 
-        if transform/2 [
-            out/writeFloat transform/2/1 
-            out/writeFloat transform/2/2
-        ] 
-        if alpha [
-            out/writeUI8 min 255 alpha
-        ] 
-        if hasColorMult [
-            out/writeUI8 min 255 colorMult/1 
-            out/writeUI8 min 255 colorMult/2 
-            out/writeUI8 min 255 colorMult/3
-        ]
-    ] 
-    parse-ShapeDefinition: func [
-        data 
-        /local 
-        thickness color 
-        points x y 
-        err
-    ] [
-        parse/all data [any [
-                'lineStyle set thickness integer! set color tuple! (
-                    out/writeUI8 cmdLineStyle 
-                    out/writeUI16 thickness 
-                    out/writeBytes to-binary color
-                ) 
-                | 
-                'moveTo set x integer! set y integer! (
-                    out/writeUI8 cmdMoveTo 
-                    out/writeUI16 x 
-                    out/writeUI16 y
-                ) 
-                | 
-                'curve set points block! (
-                    out/writeUI8 cmdCurve 
-                    out/writeUI16 (length? points) / 4 
-                    foreach [cx cy ax ay] points [
-                        out/writeUI16 cx 
-                        out/writeUI16 cy 
-                        out/writeUI16 ax 
-                        out/writeUI16 ay
-                    ]
-                ) 
-                | 
-                'line set points block! (
-                    out/writeUI8 cmdLine 
-                    out/writeUI16 (length? points) / 2 
-                    foreach [x y] points [
-                        out/writeUI16 x 
-                        out/writeUI16 y
-                    ]
-                ) 
-                | copy err 1 skip (
-                    ask reform ["Invalid shape definition:" mold err]
-                )
-            ]] 
-        out/writeUI8 0
-    ] 
-    parse-controlTags: func [
-        data 
-        /local 
-        id depth transform type frames name colorTransform 
-        flags soundData
-    ] [
-        parse/all data [
-            'TotalFrames set frames integer! (
-                out/writeUI16 frames
-            ) 
-            any [
-                'Move set depth integer! set transform block! set color [block! | none] (
-                    out/writeUI8 cmdMove 
-                    out/writeUI16 depth - 1 
-                    flags: 0 
-                    write-transform transform color flags
-                ) 
-                | 
-                'ShowFrame (
-                    out/writeUI8 cmdShowFrame
-                ) 
-                | 
-                'Place set type word! set id integer! set depth integer! set transform block! set color [block! | none] (
-                    out/writeUI8 cmdPlace 
-                    out/writeUI16 id 
-                    out/writeUI16 depth - 1 
-                    flags: select [image 0 object 1 shape 2] type 
-                    write-transform transform color flags
-                ) 
-                | 
-                'Replace set type word! set id integer! set depth integer! set transform block! set color [block! | none] (
-                    out/writeUI8 cmdReplace 
-                    out/writeUI16 id 
-                    out/writeUI16 depth - 1 
-                    flags: select [image 0 object 1 shape 2] type 
-                    write-transform transform color flags
-                ) 
-                | 
-                'Remove set depth integer! (
-                    out/writeUI8 cmdRemove 
-                    out/writeUI16 depth - 1
-                ) 
-                | 
-                'Label set name string! (
-                    out/writeUI8 cmdlabel 
-                    out/writeUTF name
-                ) 
-                | 
-                'Sound set id integer! set soundData block! (
-                    out/writeUI8 cmdSound 
-                    out/writeUI16 id
-                ) 
-                | pos: 1 skip (
-                    ask reform ["UNKNOWN COMMAND near:" mold copy/part pos 20 "..."]
-                )
-            ]
-        ]
-    ]
-]
+] do load decompress 64#{
+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
+5Ap8mG/nPHmXa+TIvfWn6O3cv3XRHqk/nPjufN+63dCp4m7cueE03+5Z8s6ic6Do
+xzknzcqRN8PEwVtzCgAWVKJ7gAkNz9PqXRDiDTzeopC9QfRc8NC/nLjx5Ea8K7Dy
+Jqlh8/cfvfkKMW7Zw8vdPpoF83lw503R+AG54TWile+BWQC/R/HDyiM2AlpoX/CW
+GAfTh7TqygVEfYSfyC/ASRAHkvdAwLFGOsN6CQdHa6xluWjlhZGPl2FM9GD8bxCH
+xF1qX7x/QH+/pH9T+w5pm73E9UGfxfa8+9gLl6xnGYRxw4yYoYcgYCShqFiW3ZdE
+dxG6GyOX7ZcuM/RlEWynnrei9M6QSHxL6JPaR6Q7fNxcmK2DcDEbR3f5oNhkc554
+hv4DnzEtMRz7ZU+8g4c7EQfkBXL3AfiDv8puxgXO8WeU69SuJYTYL6URYd3hw0P/
+yqFifHDFADqwstlTiiy21ABNAVV2AgmcjmVK33GWvg1HpirBA09OPWExMVPyZok5
+zhIzV/rGjW5gSMi91bCI3Iyw3mIVP7wkqHv3VArjhu5kmzmLfAFxHuD915RNVSNF
+QAj3MF6+FDshvMjdjJOg7saqESDHRdVgWSWHRcyfkk/6Z7QkUFlpadCuO6KEtV14
+dhl1dhl1WF27jDq7jDq7jDq7jDpa+BSxXUadXUadXUad9Nll1Nll1Nll1Nll1JGq
+1OG3y6izy6izy6iTILTLqLPLqLPLqCM0ssuos8uos8uokzSzy6ij0X93GXV2GXV2
+GXV2GXV2GXW2xte7jDq7jDq7jDoW15QIQruMOt4uo84uo84uo84uo84uo87nkjJk
+l1Fnl1Fnl1Fnl1EnxXSXUWeXUYeU3GXU2WXUQdKzy6ijgt9l1Nll1Nll1Nll1Nll
+1Nll1FHGl8tKZgHgz0+2ssuoY9PdXUadXUadXUadXUadXUadXUadXUadj4j+LqOO
+6imobZdRZ5dRB+0y6jx6B1hmi7fLqKNpaJdRZ5cSxYz0LqMOf3YZdTZhn/Euo84u
+o05afJdRZ5dRR4nRLqOOina7jDpZoF1GnV1GnV1GHW+XUWeXUUdFPX+XUWeXUWeX
+UWeXUefTYIVdRp1dRp1dRp1dRp1dRp3DXUadXUYdTWIDcnc+n9RgAD9vltyGnZWQ
+HfhL9DW7nJ8ou+S72tPx2MViPUR3Ll5EgjtyPID7E3s8pwzEhEAuSwGzh2s9ayI/
+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
+0jMwdYhVTHf6KyaFlxbBu55TWEaKy4VBUKJUtF6Rvcev+ANQsWxrJYslzWEarkFV
+jco3uUHRpNn4xt+gxc1KXc+DMZyb7UU1kOUk8WtXqsUw+55KuCXc+6SizcjiefD/
+JklId3aD4cWJYG2lwlBZKd1hcW9QJUiNxo0i4UU1EJl4o+DH57IYrzza5Tgi//jL
+JVyEWKxYLCq8j8UKKHy+J0VOpuQPuZYdzFRxrcxxyLU3C+Gh8Xz5MRXrUy6EFK+C
+uPf6kEXtUhFaV6yTdKqvbVboacFMyp22ZgbHdOwK/rKXSjJeCeEfs2NtuN+eAexT
+ZdG6MLvE6S1W8cPLzDibpzjrfeEstY/1CYRUoGFVVihQa6DvX1AmfbQIsZGKaYLA
+dMq0irFmwT8FxM24aN8aBB0bWz67kxjLlDn8acTZr+D29c/LD8vgbolh8zZnCzT4
+dGfn8EzuUCkTVG/wLKBzAf/CEYIrUSk5eQeKu8r4J5FKBa4PcQwFbLg441CQRIeW
+YswkYtTS7dR95cU/n51WWC6mGsyVNPdV0gnYO1rGaay44savjEfqZA6XPzLWG+uy
+AvZ2hJcfx7Az1z3khkLi5y5vscWIkVmTlDvft4+kWyJuLrloLDZlVdJ6XN+to5sy
+4wlWArZFYtcyijRC8VGNKL1KMFmh/4B5Dv879Sb4X7Cd4T/EsIX/4g0OhD5d46L/
+Se1GNjcZ+UMICehvl4DpfpOej9uTkqSQkvasKV2sq6HOLEadR/UkDtHRHY3UgHcg
+cNEFa2XlJhmk73E3CbxNEWfSm2iI8xnzpFOBi5Ib4wxSnQ9pyRDWTzFNmWAQNYy9
+jLJE7tth6taoom/heMifKJAqti4pJIegdCOELcEkhT6L/NlwujiPnS/ObsLsJoz8
+/KUmzMmszBzB2+U+ypMxOYncYLpgdsW1oh+0SaO0BfMjDBWVqmPzoYRHM5xPwc48
+Gdi/14vVRQBzj25BcI8tY8rbMsTfcAt/MkvwzsZP2tHzGEvcM+/ah7sMpRaK9LSf
+980Os+KNPct+kdhVtr+5zm4JtcnpDAYwGwNhslU3pNvlT6f15e+DwYsXf6DK6M0R
+5Kp1KSNp5CLAH1J49w0kNofUwibYnyjsu9C7LYS9ZrBz98EEdkfBwLHHADZkWF4E
+19dz76e1O/djU7XDn9Jqz02+zgB8zYBfBXFQ1K1rhi/fuGsBfdb/X1wfEsYX1etz
+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
+}
