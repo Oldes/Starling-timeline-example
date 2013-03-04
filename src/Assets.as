@@ -99,6 +99,7 @@ package
 		private static const cmdTimelineName:int             = 14;
 		private static const cmdTimelineShape:int            = 15;
 		private static const cmdStartMovie2:int              = 16;
+		private static const cmdWalkData:int                 = 17;
 		
 		public function Assets() 
 		{
