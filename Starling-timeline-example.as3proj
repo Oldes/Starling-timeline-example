@@ -49,7 +49,7 @@
   </build>
   <!-- SWC Include Libraries -->
   <includeLibraries>
-    <!-- example: <element path="..." /> -->
+    <element path="" />
   </includeLibraries>
   <!-- SWC Libraries -->
   <libraryPaths>
@@ -82,7 +82,8 @@
   <!-- Executed before build -->
   <preBuildCommand />
   <!-- Executed after build -->
-  <postBuildCommand alwaysRun="False">c:\dev\UTILS\apparat-1.0-SNAPSHOT\tdsi.bat -i $(OutputFile)</postBuildCommand>
+  <postBuildCommand alwaysRun="False">c:\dev\UTILS\apparat-1.0-SNAPSHOT\tdsi.bat -i $(OutputFile)
+c:\dev\Python33\Python.exe $(ProjectDir)/Utils/add-opt-in.py $(OutputFile)</postBuildCommand>
   <!-- Other project options -->
   <options>
     <option showHiddenPaths="False" />
