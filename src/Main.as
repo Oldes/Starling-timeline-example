@@ -35,7 +35,7 @@ package
 			// entry point
 			trace("version: "+NativeApplication.nativeApplication.runtimeVersion +" "+stage.stageHeight);
 			Starling.multitouchEnabled = true; // useful on mobile devices
-            Starling.handleLostContext = false; // required on Android
+            Starling.handleLostContext = true; // required on Android
 			
 			var viewPortRectangle:Rectangle = new Rectangle();
 			viewPortRectangle.height = stage.stageHeight;
