@@ -53,7 +53,7 @@
   </includeLibraries>
   <!-- SWC Libraries -->
   <libraryPaths>
-    <!-- example: <element path="..." /> -->
+    <element path="c:\dev\UTILS\apparat-1.0-SNAPSHOT\apparat-ersatz-1.0-SNAPSHOT.swc" />
   </libraryPaths>
   <!-- External Libraries -->
   <externalLibraryPaths>
@@ -82,7 +82,7 @@
   <!-- Executed before build -->
   <preBuildCommand />
   <!-- Executed after build -->
-  <postBuildCommand alwaysRun="False" />
+  <postBuildCommand alwaysRun="False">c:\dev\UTILS\apparat-1.0-SNAPSHOT\tdsi.bat -i $(OutputFile)</postBuildCommand>
   <!-- Other project options -->
   <options>
     <option showHiddenPaths="False" />

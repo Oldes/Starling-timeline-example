@@ -40,7 +40,7 @@ package scenes
 			//in real life I'm not using so many animations, but much more longer one.
 			//The main purpose of TimelineMovies is not to have many duplicated animations!
 			var tmp:DisplayObject;
-			for (var i:int = 0; i < 50; i++) {
+			for (var i:int = 0; i < 60; i++) {
 				var n:Number = Math.random();
 				var animName:String;
 				if (n < .5) {
@@ -54,9 +54,15 @@ package scenes
 				tmp.rotation = Math.random();
 				TimelineMovie(tmp).fps = 10 + 50 * Math.random();
 				TimelineMovie(tmp).onFrameLabel = onAnimLabel;
+				
 				addChild(tmp);
 			}
-
+			/*
+			tmp = Assets.getTimelineObject("SopranZpiva");
+			tmp.x = 400;
+			tmp.y = 400;
+			addChild(tmp);
+			*/
 			System.pauseForGCIfCollectionImminent(0.5);
 			log("Init scene done");
 		}

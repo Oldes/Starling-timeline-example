@@ -5,6 +5,7 @@ package
 	 * @author Oldes
 	 */
 	import display.TextureAnim;
+	import display.TimelineMemoryBlock;
 	import display.TimelineMovie;
 	import display.TimelineObject;
 	import display.TimelineShape;
@@ -34,6 +35,7 @@ package
 	import starling.display.materials.StandardMaterial;
 	import starling.display.Quad;
 	import starling.display.Sprite;
+	import starling.utils.getNextPowerOfTwo;
     
 	import starling.core.Starling;
     import starling.text.BitmapFont;
@@ -42,6 +44,9 @@ package
     import starling.textures.TextureAtlas;
 	import starling.events.Event;
 
+	import apparat.memory.MemoryPool;
+	import apparat.memory.MemoryBlock;
+	import apparat.memory.Memory;
 	
 	public final class Assets 
 	{
@@ -54,6 +59,7 @@ package
 		private static var namesByIDs:Array = new Array();
 		private static var IDsByNames:Array = new Array();
 		
+		private static var mTextureDefinitions:Array = new Array();
 		private static var spriteDefinitions:Array = new Array();
 		private static var shapeDefinitions:Array = new Array();
 		private static var shapeMaterials:Vector.<StandardMaterial> = new Vector.<StandardMaterial>;
@@ -101,9 +107,24 @@ package
 		private static const cmdStartMovie2:int              = 16;
 		private static const cmdWalkData:int                 = 17;
 		
+		private static const cmdTimelineData:int             = 18;
+		private static const cmdTextureData:int              = 19;
+		
+		private static const cmdExternalATF:int              = 30;
+		private static const cmdExternalPNG:int              = 31;
+		
+		private static const mMemory:ByteArray = new ByteArray();
+		private static const DOMAIN_MEMORY_LENGTH:int = 20000000;
+		
+		private var loadersCounter:int = 0;
+		
 		public function Assets() 
 		{
 			log("Assets");
+
+			// Initialize the MemoryPool with default settings.
+			MemoryPool.initialize(33554432);
+			
 			context.allowCodeImport = true;
 			context.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;;
 			inBuffer = new ByteArray();
@@ -138,14 +159,14 @@ package
 				fs.endian = Endian.LITTLE_ENDIAN;
 				fs.addEventListener(flash.events.Event.COMPLETE, onProcessCommands);
 				fs.open(sourceFile, FileMode.READ);	onProcessCommands();
-			} else {				
+			} else if(loadersCounter==0) {				
 				log();
 				log("ALL PRELOADED " + (getTimer() - started) + "ms", "pixelsProcessed: "+pixelsProcessed);
 				if (fOnPreloaded!=null) fOnPreloaded();
 			}
 		}
 		
-		private function onProcessCommands(e:flash.events.Event=null):void{
+		private function onProcessCommands(e:flash.events.Event=null):void {
 			trace("preloaded Texture... " + currentFile +" "+(getTimer()-time));
 			var textureAtlas:TextureAtlas;
 			var texture:Texture;
@@ -174,80 +195,60 @@ package
 						activeLevel = fs.readUTF();
 						trace("use-level: " + activeLevel);
 						break;
-					case cmdLoadTexture:
-						numBytes = fs.readUnsignedInt();
-						log("textureAtlas "+" "+numBytes)
-						fs.readBytes(inBuffer, 0, numBytes);
-						loader.loadBytes(inBuffer, context);
-						return;
-					case cmdInitTexture:
-						bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
+					case cmdTextureData:
 						activeTextureName = fs.readUTF();
-						log("loaded file " + activeTextureName);
+						numId = fs.readUnsignedByte();
+						numBytes = fs.readUnsignedInt();
+						trace("cmdTextureData " + activeTextureName + " id:" + numId + " " + numBytes);
+						bytes = new ByteArray();
+						fs.readBytes(bytes, 0, numBytes);
+						bytes.endian = Endian.LITTLE_ENDIAN;
+						mTextureDefinitions[activeTextureName] = bytes;
+						command = fs.readUnsignedByte();
+						switch(command) {
+							case 0: //PNG
+								//numId = fs.readUnsignedByte();
+								trace("ExternalPNG: " + activeTextureName);
+								var ldr:Loader = new Loader();
+								var ctx:LoaderContext = new LoaderContext();
+								ctx.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;
+								ctx.parameters = {"id": activeTextureName};
+								ldr.contentLoaderInfo.addEventListener(flash.events.Event.COMPLETE, onLoadedPNG);
+								ldr.load(new URLRequest('Data/' + activeLevel + '.' + numId), ctx);
+								loadersCounter++;
+								break;
+							case 1: //ATF
+								break;
+							default:
+								throw new Error("Invalid Texture type: "+command+"!");
+						}
+						break;
+					/*case cmdLoadTexture:
+						numBytes = fs.readUnsignedInt();
+						trace("textureAtlas "+" "+numBytes)
+						fs.readBytes(inBuffer, 0, numBytes);
+						//loader.loadBytes(inBuffer, context);
+						break;
+					case cmdInitTexture:
+						//bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
+						activeTextureName = fs.readUTF();
+						trace("loaded file " + activeTextureName);
 						//pixelsProcessed += (bitmapData.width * bitmapData.height);
-						activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
-						atlasTextures[activeTextureName] = activeAtlasTexture;
-						bitmapData.dispose();
+						//activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
+						//atlasTextures[activeTextureName] = activeAtlasTexture;
+						//bitmapData.dispose();
 						inBuffer.clear();
 						break;
-					case cmdDefineImage:
-						id = fs.readUTF();
-						region = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						//trace("addregion:" + id+" "+region);
-						//activeTextureAtlas.addRegion(id, inRectangle);
-						//trace("image: " + activeLevel + "/" + activeTextureName + "/" + id);
-						images[activeLevel+"/"+activeTextureName+"/"+id] = new Image(Texture.fromTexture(activeAtlasTexture, region));
-						break;
-					case cmdStartMovie:
-						//trace("start-movie");
-						activeMovieName = fs.readUTF();
-						activeMovieTextures = new Vector.<Texture>;
-						
-						bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
-						activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
-						atlasTextures[activeMovieName] = activeAtlasTexture;
-						bitmapData.dispose();
-						break;
-					case cmdAddMovieTexture:
-						region = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region));
-						break;
-					case cmdAddMovieTextureWithFrame:
-						region = new Rectangle();
-						frame = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						frame.x = fs.readShort();
-						frame.y = fs.readShort();
-						frame.width = fs.readUnsignedShort();
-						frame.height = fs.readUnsignedShort();
-						//trace("add-texture:" + region + " " + frame);
-						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region, frame));
-						break;
-					case cmdEndMovie:
-						movies[activeMovieName] = new TextureAnim(activeMovieTextures, 25);
-						activeMovieTextures.length = 0;
-						activeMovieTextures = null;
-						break;
+					*/
 					case cmdLoadSWF:
 						id = fs.readUTF();
 						numBytes = fs.readUnsignedInt();
 						//trace("load-swf: " + id + " " + numBytes);
 						fs.readBytes(inBuffer, 0, numBytes);
-						loader.loadBytes(inBuffer, context);
-						return;
+						//loader.loadBytes(inBuffer, context);
+						break;
 					case cmdInitSWF:
-						log("SWF loaded:" + LoaderInfo(e.target).content);
+						/*trace("SWF loaded:" + LoaderInfo(e.target).content);
 						var mov:DisplayObjectContainer = DisplayObjectContainer(LoaderInfo(e.target).content);
 						var n:int = mov.numChildren;
 						var m:DisplayObjectContainer;
@@ -258,74 +259,192 @@ package
 								stopAllInSWF(m);
 								if (m is MovieClip && m.name) {
 									var mc:MovieClip = MovieClip(m);
-									log("SWF: " + m.name);
+									trace("SWF: " + m.name);
 									mc.stop();
 									movies[m.name] = m;	
 								}
 							}
 						}
+						*/
 						inBuffer.clear();
 						break;
-					case cmdATFTexture:
+					
+					/*case cmdATFTexture:
 						numBytes = fs.readUnsignedInt();
 						time = getTimer();
 						fs.readBytes(inBuffer, 0, numBytes);
-						log("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
+						trace("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
 						activeTextureName = fs.readUTF();
-						activeAtlasTexture = Texture.fromAtfData(inBuffer);
-						atlasTextures[activeTextureName] = activeAtlasTexture;
+						//activeAtlasTexture = Texture.fromAtfData(inBuffer);
+						//atlasTextures[activeTextureName] = activeAtlasTexture;
 						inBuffer.clear();
 						break;
 					case cmdATFTextureMovie:
 						numBytes = fs.readUnsignedInt();
 						time = getTimer();
 						fs.readBytes(inBuffer, 0, numBytes);
-						log("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
+						trace("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
 						activeMovieName = fs.readUTF();
 						activeMovieTextures = new Vector.<Texture>;
 						
-						activeAtlasTexture = Texture.fromAtfData(inBuffer);
-						atlasTextures[activeMovieName] = activeAtlasTexture;
+						//activeAtlasTexture = Texture.fromAtfData(inBuffer);
+						//atlasTextures[activeMovieName] = activeAtlasTexture;
 						inBuffer.clear();
-						break;
-					case cmdTimelineObject:
-						numId = fs.readUnsignedShort();
-						numBytes = fs.readUnsignedInt();
-						bytes = new ByteArray();
-						fs.readBytes(bytes, 0, numBytes);
-						bytes.endian = Endian.LITTLE_ENDIAN;
-						spriteDefinitions[numId] = bytes;
-						log("Definition " + numId, numBytes);
-						break;
-					case cmdTimelineName:
-						numId = fs.readUnsignedShort();
-						id    = fs.readUTF();
-						log("NameDefinition: " + numId, id);
-						namesByIDs[numId] = id;
-						IDsByNames[id] = numId;
-						break;
-					case cmdTimelineShape:
-						numId = fs.readUnsignedShort();
-						numBytes = fs.readUnsignedInt();
-						bytes = new ByteArray();
-						fs.readBytes(bytes, 0, numBytes);
-						bytes.endian = Endian.LITTLE_ENDIAN;
-						shapeDefinitions[numId] = bytes;
-						log("Shape " + numId, numBytes);
 						break;
 					case cmdStartMovie2:
 						trace("start-movie2");
 						activeMovieName = fs.readUTF();
 						activeMovieTextures = new Vector.<Texture>;
 						break;
+					*/
+					case cmdTimelineData:
+						numBytes = fs.readUnsignedInt();
+						trace("TimelineData bytes " +  numBytes);
+						//fs.readBytes(inBuffer, 0, numBytes);
+						var dataBlock:MemoryBlock = MemoryPool.allocate( numBytes );
+						MemoryPool.buffer.position = dataBlock.position;
+						while ((command = fs.readUnsignedByte()) > 0) {
+							switch(command){
+								case cmdTimelineObject:
+									numId = fs.readUnsignedShort();
+									numBytes = fs.readUnsignedInt();
+									fs.readBytes(inBuffer, 0, numBytes);
+									spriteDefinitions[numId] = new TimelineMemoryBlock(dataBlock, MemoryPool.buffer.position, numBytes);
+									MemoryPool.buffer.writeBytes(inBuffer);
+									inBuffer.clear();
+									//trace("Definition " + numId+" > "+ numBytes);
+									break;
+								case cmdTimelineShape:
+									numId = fs.readUnsignedShort();
+									numBytes = fs.readUnsignedInt();
+									fs.readBytes(inBuffer, 0, numBytes);
+									shapeDefinitions[numId] = new TimelineMemoryBlock(dataBlock, MemoryPool.buffer.position, numBytes);
+									MemoryPool.buffer.writeBytes(inBuffer);
+									inBuffer.clear();
+									trace("Shape " + numId+" > "+ numBytes);
+									break;
+								default:
+									throw new Error("Invalid Timeline command");
+							}
+						}
+						var n:int = fs.readUnsignedInt();
+						while (n > 0) {
+							n--;
+							numId = fs.readUnsignedShort();
+							id    = fs.readUTF();
+							trace("NameDefinition: " + numId+" > "+ id);
+							namesByIDs[numId] = id;
+							IDsByNames[id] = numId;
+						}
+						break;
+					
+					/*case cmdTimelineName:
+						numId = fs.readUnsignedShort();
+						id    = fs.readUTF();
+						//trace("NameDefinition: " + numId+" > "+ id);
+						namesByIDs[numId] = id;
+						IDsByNames[id] = numId;
+						break;
+					*/
 					default:
-						log("Invalid command " + command);
+						trace("Invalid command " + command);
 						return;
 				}
 			}
+			log("time: "+(getTimer() - started));
 			fs.close();
 			fs = null;
 			preloadFile();
+		}
+		private function onLoadedPNG(e:flash.events.Event):void {
+			e.target.removeEventListener(flash.events.Event.COMPLETE, onLoadedPNG);
+            var content:Object = e.target.content;
+			trace("LOADED PNG " + LoaderInfo(e.target).parameters.id);
+			var bitmapData:BitmapData = Bitmap(content).bitmapData;
+			var data:ByteArray = mTextureDefinitions[LoaderInfo(e.target).parameters.id];
+			
+			activeTextureName = LoaderInfo(e.target).parameters.id;
+			trace("loaded file " + activeTextureName);
+						//pixelsProcessed += (bitmapData.width * bitmapData.height);
+			activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
+			atlasTextures[activeTextureName] = activeAtlasTexture;
+						
+			if (data) {
+				trace("DATA " + data.length);
+				var command:int;
+				var id:String;
+				var region:Rectangle;
+				var frame:Rectangle;
+				
+				while ((command = data.readUnsignedByte()) > 0) {
+					//trace(command);
+					switch(command){
+						case cmdDefineImage:
+							id = data.readUTF();
+							region = new Rectangle();
+							region.x = data.readUnsignedShort();
+							region.y = data.readUnsignedShort();
+							region.width = data.readUnsignedShort();
+							region.height = data.readUnsignedShort();
+							//tf.appendText("\n" + id +" "+region);
+							//trace("addregion:" + id+" "+region);
+							//activeAtlasTexture.addRegion(id, inRectangle);
+							//trace("image: " + activeLevel + "/" + activeTextureName + "/" + id);
+							images[activeLevel+"/"+activeTextureName+"/"+id] = new Image(Texture.fromTexture(activeAtlasTexture, region));
+							break;
+						case cmdStartMovie:
+							//trace("start-movie");
+							activeMovieName = fs.readUTF();
+							activeMovieTextures = new Vector.<Texture>;
+							
+							bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
+							activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
+							atlasTextures[activeMovieName] = activeAtlasTexture;
+							bitmapData.dispose();
+							break;
+						case cmdAddMovieTexture:
+							region = new Rectangle();
+							region.x = fs.readUnsignedShort();
+							region.y = fs.readUnsignedShort();
+							region.width = fs.readUnsignedShort();
+							region.height = fs.readUnsignedShort();
+							activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region));
+							break;
+						case cmdAddMovieTextureWithFrame:
+							region = new Rectangle();
+							frame = new Rectangle();
+							region.x = fs.readUnsignedShort();
+							region.y = fs.readUnsignedShort();
+							region.width = fs.readUnsignedShort();
+							region.height = fs.readUnsignedShort();
+							frame.x = fs.readShort();
+							frame.y = fs.readShort();
+							frame.width = fs.readUnsignedShort();
+							frame.height = fs.readUnsignedShort();
+							//trace("add-texture:" + region + " " + frame);
+							activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region, frame));
+							break;
+						case cmdEndMovie:
+							//movies[activeMovieName] = new TextureAnim(activeMovieTextures, 25);
+							activeMovieTextures.length = 0;
+							activeMovieTextures = null;
+							break;
+						default:
+							throw new Error("Invalid texture data definition command");
+					}
+				}
+			}
+			loadersCounter--;
+			trace("LOADED " + (getTimer()-started));
+			if (loadersCounter == 0) {
+				log();
+				log("ALL PRELOADED " + (getTimer() - started) + "ms", "pixelsProcessed: "+pixelsProcessed);
+				if (fOnPreloaded!=null) fOnPreloaded();
+			}
+			
+			//activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
+			//atlasTextures[activeMovieName] = activeAtlasTexture;
+			bitmapData.dispose();
 		}
 
 		
@@ -337,7 +456,9 @@ package
 		
 		public static function getImage(name:String):Image
         {
-            return images[name];
+			var img:Image = images[name] as Image;
+			img.touchable = false;
+            return img;
         }
 		public static function getFlashMovie(name:String):MovieClip {
 			return movies[name];
@@ -364,11 +485,11 @@ package
 			pool.push(object);
 			return true;
 		}
-		public static function getTimelineObject(name:String, asSprite:Boolean=false):DisplayObject {
-			log("getTimelineObject " + name);
-			return getTimelineObjectByID(IDsByNames[name], asSprite);
+		public static function getTimelineObject(name:String, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineObject " + name);
+			return getTimelineObjectByID(IDsByNames[name], asSprite, touchable);
 		}
-		public static function getTimelineObjectByID(id:uint, asSprite:Boolean=false):DisplayObject {
+		public static function getTimelineObjectByID(id:uint, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
 			//log("getTimelineObject: " + id + " "+namesByIDs[id]);
 			
 			var object:DisplayObject;
@@ -390,21 +511,16 @@ package
 			}
 			if (!object) {
 				var name:String = namesByIDs[id];
-				var spec:ByteArray = spriteDefinitions[id];
-			
+				var spec:TimelineMemoryBlock = spriteDefinitions[id];
+				
 				if (spec) {
-					spec.position = 0;
-					var newSpec:ByteArray = new ByteArray();
-					spec.readBytes(newSpec);
-					newSpec.endian = Endian.LITTLE_ENDIAN;
-					newSpec.position = 0;
-					var numFrames:uint = newSpec.readUnsignedShort();
-					//log("Creating new TimelineObject", id, spec.length, numFrames);
+					var numFrames:uint = Memory.readUnsignedShort(spec.head);
+					log("Creating new TimelineObject", id, spec.length, numFrames);
 					
 					if (numFrames == 1) {
-						object = new TimelineSprite(newSpec) as DisplayObject;
+						object = new TimelineSprite(spec) as DisplayObject;
 					} else {
-						object = new TimelineMovie(newSpec) as DisplayObject;
+						object = new TimelineMovie(spec) as DisplayObject;
 					}
 					TimelineObject(object).removeTint();
 					object.name = name?name:String(id);
@@ -429,8 +545,10 @@ package
 				}
 				pool.push(object);
 			}
+			object.touchable = touchable;
 			if (asSprite) {
 				var spr:Sprite = new Sprite();
+				spr.name = name?name:String(id);
 				spr.addChild(object);
 				return spr;
 			}
