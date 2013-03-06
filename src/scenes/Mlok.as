@@ -40,14 +40,14 @@ package scenes
 			//in real life I'm not using so many animations, but much more longer one.
 			//The main purpose of TimelineMovies is not to have many duplicated animations!
 			var tmp:DisplayObject;
-			for (var i:int = 0; i < 60; i++) {
+			for (var i:int = 0; i < 100; i++) {
 				var n:Number = Math.random();
 				var animName:String;
-				if (n < .5) {
+				//if (n < .5) {
 					animName = "SopranZpiva";
-				} else {
-					animName = "SopranSpi";
-				}
+				//} else {
+				//	animName = "SopranSpi";
+				//}
 				tmp = Assets.getTimelineObject(animName);
 				tmp.x = 100 + 1420 * Math.random();
 				tmp.y = 100 + 780 * Math.random();
