@@ -39,6 +39,7 @@
       <path-element>C:\dev\Starling\Starling-Extension-Graphics\extension\src</path-element>
       <path-element>C:\Program Files (x86)\FlashDevelop\Library\AS3\classes</path-element>
     </source-path>
+    <include-libraries />
     <library-path append="true">
       <path-element>c:\dev\UTILS\apparat-1.0-SNAPSHOT\apparat-ersatz-1.0-SNAPSHOT.swc</path-element>
     </library-path>
