@@ -123,7 +123,7 @@ package
 			log("Assets");
 
 			// Initialize the MemoryPool with default settings.
-			MemoryPool.initialize(33554432);
+			MemoryPool.initialize(500000);
 			
 			context.allowCodeImport = true;
 			context.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;;
@@ -515,7 +515,7 @@ package
 				
 				if (spec) {
 					var numFrames:uint = Memory.readUnsignedShort(spec.head);
-					log("Creating new TimelineObject", id, spec.length, numFrames);
+					//log("Creating new TimelineObject", id, spec.length, numFrames);
 					
 					if (numFrames == 1) {
 						object = new TimelineSprite(spec) as DisplayObject;
