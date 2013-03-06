@@ -61,7 +61,6 @@ package display
 			mCurrentTime = 0.0;
 			mCurrentFrame = 1;
 			mFrameDuration = 1.0 / fps;
-			trace("****************** INIT " + name + " " + mPointerHead);
 			play();
 			updateFrame();
 		}
@@ -131,7 +130,6 @@ package display
 				} else {
 					dcResume = Starling.juggler.delayCall(play, delay);
 				}
-				//trace("AAAAAAAAAAAAAAAAAAAA " + dcResume);
 			}
         }
         
@@ -183,11 +181,9 @@ package display
 			//trace("updateFrame "+name)
 			
 			var p:int = mPointer; //actuall memory pointer position
-			//trace("------> "+ mPointer +" "+p);
+
 			do {
-				p = mPointer;
 				opcode = Memory.readUnsignedByte(p);
-				//trace("MP: " + p +" op: "+ opcode);
 				p++;
 				
 				switch(opcode) {
@@ -195,7 +191,7 @@ package display
 						depth = Memory.readUnsignedShort(p);
 						flags = Memory.readUnsignedByte(p + 2);
 						p += 3;
-						//trace("moveDepth " + depth + " " + flags);
+
 						obj = getChildAt(depth);
 						if (obj) {
 							tmpMatrix.tx = Memory.readFloat(p);
@@ -353,9 +349,8 @@ package display
 					default:
 						log("UNKNOWN opcode: " + opcode);
 				}
-				mPointer = p;
 			} while (notBreak);
-			//trace("<------ "+ mPointer +" "+p);
+			mPointer = p;
 		}
         
         // IAnimatable
@@ -363,7 +358,6 @@ package display
         /** @inheritDoc */
         public function advanceTime(passedTime:Number):void
         {
-			//trace(" --------- advance.." + name);
             var previousFrame:int = mCurrentFrame;
             
             //if (mLoop && mCurrentTime == mTotalTime) { mCurrentTime = 0.0; mCurrentFrame = 0; }
