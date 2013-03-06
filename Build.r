@@ -14,7 +14,7 @@ REBOL [
 ]
 
 do %/c/dev/GIT/RS/rs.r
-rs/run/version 'pack-assets 'fastmem
+rs/run/version 'pack-assets 'fastmem2
 ;do %scripts/pack-assets.r
 
 ;http://code.google.com/p/libgdx/wiki/TexturePacker
@@ -37,7 +37,7 @@ with ctx-pack-assets [
 ]
 
 
-atf-type: none
+atf-type: none ;use: %dxt, %etc or %rgba for compressed textures (pvr not supported yet, as it's quality is bad for my purpose) 
 
 foreach level [
 	%Mlok

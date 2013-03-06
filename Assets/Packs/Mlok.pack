@@ -5,21 +5,105 @@ filter: Nearest,Nearest
 repeat: none
 SopranTelicko
   rotate: false
-  xy: 1, 42
+  xy: 1, 161
   size: 171, 83
   orig: 171, 83
   offset: 0, 0
   index: -1
-SopranHlava
+Sekac
+  rotate: false
+  xy: 1, 87
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 1
+Sekac
+  rotate: false
+  xy: 174, 172
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 2
+Sekac
   rotate: false
   xy: 1, 13
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 3
+Sekac
+  rotate: false
+  xy: 274, 172
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 4
+Sekac
+  rotate: false
+  xy: 374, 172
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 5
+Sekac
+  rotate: false
+  xy: 101, 87
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 6
+Sekac
+  rotate: false
+  xy: 101, 13
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 7
+Sekac
+  rotate: false
+  xy: 201, 98
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 8
+Sekac
+  rotate: false
+  xy: 201, 24
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 9
+Sekac
+  rotate: false
+  xy: 301, 98
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 10
+Sekac
+  rotate: false
+  xy: 301, 24
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 11
+Sekac
+  rotate: false
+  xy: 401, 98
+  size: 98, 72
+  orig: 98, 72
+  offset: 0, 0
+  index: 12
+SopranHlava
+  rotate: false
+  xy: 401, 69
   size: 56, 27
   orig: 56, 27
   offset: 0, 0
   index: -1
 SopranNoha1C
   rotate: false
-  xy: 174, 99
+  xy: 474, 218
   size: 24, 26
   orig: 24, 26
   offset: 0, 0
@@ -31,23 +115,44 @@ SopranSpodniCelist
   orig: 30, 10
   offset: 0, 0
   index: -1
+SopranNoha2B
+  rotate: false
+  xy: 500, 231
+  size: 11, 13
+  orig: 11, 13
+  offset: 0, 0
+  index: -1
+SopranOcniVicka
+  rotate: false
+  xy: 174, 161
+  size: 12, 9
+  orig: 12, 9
+  offset: 0, 0
+  index: -1
+SopranNoha2C
+  rotate: false
+  xy: 188, 161
+  size: 11, 9
+  orig: 11, 9
+  offset: 0, 0
+  index: -1
 SopranNoha3B
   rotate: false
-  xy: 59, 22
+  xy: 401, 49
   size: 14, 18
   orig: 14, 18
   offset: 0, 0
   index: -1
 SopranNoha4B
   rotate: false
-  xy: 174, 80
+  xy: 459, 79
   size: 10, 17
   orig: 10, 17
   offset: 0, 0
   index: -1
 SopranNoha4C
   rotate: false
-  xy: 200, 115
+  xy: 474, 206
   size: 17, 10
   orig: 17, 10
   offset: 0, 0
@@ -59,44 +164,23 @@ SopranNoha1A
   orig: 15, 10
   offset: 0, 0
   index: -1
-SopranNoha2B
-  rotate: false
-  xy: 75, 27
-  size: 11, 13
-  orig: 11, 13
-  offset: 0, 0
-  index: -1
 SopranNoha1B
   rotate: false
-  xy: 174, 61
+  xy: 401, 30
   size: 5, 17
   orig: 5, 17
   offset: 0, 0
   index: -1
-SopranOcniVicka
-  rotate: false
-  xy: 186, 88
-  size: 12, 9
-  orig: 12, 9
-  offset: 0, 0
-  index: -1
-SopranNoha2C
-  rotate: false
-  xy: 200, 104
-  size: 11, 9
-  orig: 11, 9
-  offset: 0, 0
-  index: -1
 SopranNoha3A
   rotate: false
-  xy: 219, 115
+  xy: 501, 219
   size: 10, 10
   orig: 10, 10
   offset: 0, 0
   index: -1
 SopranNoha3C
   rotate: false
-  xy: 59, 14
+  xy: 201, 16
   size: 12, 6
   orig: 12, 6
   offset: 0, 0
