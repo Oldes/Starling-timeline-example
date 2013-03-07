@@ -94,77 +94,6 @@ package display
             mTotalTime = mFrameDuration * numFrames;
             mTextures = textures.concat();
             mSounds = new Vector.<Sound>(numFrames);
-            /*mDurations = new Vector.<Number>(numFrames);
-            mStartTimes = new Vector.<Number>(numFrames);
-            
-            for (var i:int=0; i<numFrames; ++i)
-            {
-                mDurations[i] = mFrameDuration;
-                mStartTimes[i] = i * mFrameDuration;
-            }
-			*/
-			
-	mLabelNames[2] = 'StartChuzeA';
-	mLabelNames[5] = 'StartChuzeB';
-	mLabelNames[6] = 'ChuzeA';
-	mLabelNames[29] = 'ChuzeB';
-	mLabelNames[30] = 'ChuzeKonecA';
-	mLabelNames[32] = 'ChuzeKonecB';
-	mLabelNames[33] = 'BehStartA';
-	mLabelNames[35] = 'BehStartB';
-	mLabelNames[36] = 'BehA';
-	mLabelNames[59] = 'BehB';
-	mLabelNames[60] = 'BehKonecA';
-	mLabelNames[62] = 'BehKonecB';
-	mLabelNames[63] = 'PlazeniA';
-	mLabelNames[77] = 'PlazeniB';
-	mLabelNames[78] = 'DopreduA';
-	mLabelNames[89] = 'DopreduB';
-	mLabelNames[90] = 'DopreduKonecA';
-	mLabelNames[97] = 'DopreduKonecB';
-	mLabelNames[98] = 'DozaduA';
-	mLabelNames[109] = 'DozaduB';
-	mLabelNames[110] = 'DozaduKonecA';
-	mLabelNames[120] = 'DozaduKonecB';
-	mLabelNames[121] = 'Otocka';
-	mLabelNames[152] = '_Otocka';
-	mLabelNames[153] = 'Nuda1';
-	mLabelNames[192] = '_Nuda1';
-	mLabelNames[193] = 'Nuda2';
-	mLabelNames[222] = '_Nuda2';
-	mLabelNames[223] = 'Nuda3';
-	mLabelNames[248] = '_Nuda3';
-	mLabelNames[249] = 'Nuda4';
-	mLabelNames[259] = '_Nuda4';
-	mLabelNames[260] = 'Nuda5';
-	mLabelNames[275] = '_Nuda5';
-	mLabelNames[276] = 'Nuda6';
-	mLabelNames[296] = '_Nuda6';
-	mLabelNames[297] = 'Nuda7';
-	mLabelNames[331] = '_Nuda7';
-	mLabelNames[332] = 'Nuda8';
-	mLabelNames[353] = '_Nuda8';
-	mLabelNames[354] = 'Nuda9';
-	mLabelNames[377] = '_Nuda9';
-	mLabelNames[378] = 'Nuda10';
-	mLabelNames[423] = '_Nuda10';
-	mLabelNames[424] = 'Nuda11';
-	mLabelNames[460] = '_Nuda11';
-	mLabelNames[461] = 'Nuda12';
-	mLabelNames[486] = '_Nuda12';
-	mLabelNames[487] = 'Nuda13';
-	mLabelNames[516] = '_Nuda13';
-	mLabelNames[517] = 'Nuda14';
-	mLabelNames[555] = '_Nuda14';
-	mLabelNames[556] = 'Skok';
-	mLabelNames[578] = '_Skok';
-	mLabelNames[579] = 'Naklon';
-	mLabelNames[603] = '_Naklon';
-			
-			for(var key:String in mLabelNames) {
-				mLabelNumbers[mLabelNames[key]] = int(key);
-			}
-			
         }
         
         // frame manipulation
@@ -208,7 +137,18 @@ package display
             //updateStartTimes();
         }
         */
-        /** Returns the texture of a certain frame. */
+		
+		public function addLabel(number:int, name:String):void {
+			mLabelNames[number] = name;
+			mLabelNumbers[name] = number;
+		}
+		
+		/** Returns all subTextures */	
+		public function get textures():Vector.<Texture> {
+			return mTextures;
+		}
+		
+        /** Returns the texture of a certain frame. */		
         public function getFrameTexture(frameID:int):Texture
         {
             if (frameID < 0 || frameID >= numFrames) throw new ArgumentError("Invalid frame id");
@@ -270,11 +210,14 @@ package display
         
 		public function gotoAndPlay(frame:Object):void
         {
+			//log("GOTOANDPLAY " + frame, name);
 			var frameNum:uint = getFrameNumber(frame);
 			if (frameNum == 0) return;
-			mCurrentFrame = frameNum;
-			mCurrentTime = mCurrentFrame * mFrameDuration;
-			updateFrame();
+			if(mCurrentFrame != frameNum){
+				mCurrentFrame = frameNum;
+				mCurrentTime = mCurrentFrame * mFrameDuration;
+				updateFrame();
+			}
 			if(!mPlaying){
 				mPlaying = true;
 				Starling.juggler.add(this);
@@ -310,8 +253,11 @@ package display
         /** Stops playback, resetting "currentFrame" to zero. */
         public function stop():void
         {
-            mPlaying = false;
-            currentFrame = 0;
+			if(mPlaying){
+				mPlaying = false;
+				//currentFrame = 0;
+				Starling.juggler.remove(this);
+			}
         }
         
         // helpers
@@ -328,7 +274,8 @@ package display
         }*/
         
 		public function updateFrame():void {
-			if (mCurrentFrame != mPreviousFrame) {
+			if (mCurrentFrame != mPreviousFrame && mPlaying) {
+				//trace("upadate "+name+" "+mCurrentFrame)
 				mPreviousFrame = mCurrentFrame;
 				texture = mTextures[mCurrentFrame-1];
 			}
@@ -367,7 +314,7 @@ package display
             
             mCurrentTime += passedTime;
 			
-            while (mCurrentTime >= (mCurrentFrame * mFrameDuration))
+            while (mCurrentTime >= (mCurrentFrame * mFrameDuration) && mPlaying)
             {
 				
                 if (mCurrentFrame == finalFrame)
@@ -400,8 +347,7 @@ package display
                 else
                 {
                     mCurrentFrame++;
-
-					if (processFrameEvents()){
+					if (processFrameEvents()) {
 						advanceTime(mCurrentTime - ((mCurrentFrame-1) * mFrameDuration));
                         return;
 					}

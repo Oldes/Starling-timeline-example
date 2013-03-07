@@ -1,5 +1,7 @@
 package scenes 
 {
+	import display.TextureAnim;
+	import flash.display.MovieClip;
 	import scenes.Scene;
 	
 	import display.ISensor;
@@ -30,16 +32,18 @@ package scenes
 		public function Mlok() 
 		{
 			super();
+			
 		}
 		public override function onInit(e:Event):void {
 			super.onInit(e);
-			
+			dispatching = false;
 			addQuadSensor(this, 'BG', 0, 0,  gameWidth, gameHeight);
 			
 			//For testing purposes I'm adding multiple TimelineMovies with different framerate
 			//in real life I'm not using so many animations, but much more longer one.
 			//The main purpose of TimelineMovies is not to have many duplicated animations!
 			var tmp:DisplayObject;
+			
 			for (var i:int = 0; i < 100; i++) {
 				var n:Number = Math.random();
 				var animName:String;
@@ -54,8 +58,43 @@ package scenes
 				tmp.rotation = Math.random();
 				TimelineMovie(tmp).fps = 30 + 0.5 * i;
 				TimelineMovie(tmp).onFrameLabel = onAnimLabel;
+				
+				addChild(tmp);
+				
+				tmp = Assets.getStarlingMovie("Sekac") as DisplayObject;
+				tmp.x = 100 + 1420 * Math.random();
+				tmp.y = 100 + 780 * Math.random();
+				TextureAnim(tmp).fps = 30 + 0.5 * i;
+				TextureAnim(tmp).play();
 				addChild(tmp);
 			}
+			
+			/*Just to show how to include Starlin's animation.
+			  Note, that TextureAnim is not Starling's Movie and it's not functionaly complete.
+			  But you can see that although the animation is smaler than "Mlok", it's using same texture size!
+			  I would use this type only in special cases where performance is the main goal (as it's just switching subtextures)
+			*/
+			var vodnik:TextureAnim = Assets.getStarlingMovie("Vodnik");
+			vodnik.x = 500;
+			vodnik.y = 20;
+			vodnik.scaleX = -1;
+			vodnik.fps = 40;
+			vodnik.play();
+			vodnik.onFrameLabel = function(anim:TextureAnim, label:String):void {
+				log("Vodnik frame: " + label);
+			}
+			addChild(vodnik);
+			
+			/*And this is to show, how to get MovieClip from included SWF
+			  SWFs should not contain any ActionScript and or linkage!
+			  Movies must be in the first frame and have name which is used to locate it.
+			  In this case I just use simple sound loop, but flash movie can be used with various other cases,
+			  like using drawWithQuality to get images from it or use it as native overlay over Starling's layer.
+			  
+			  Sorry, don't have better sound which source would not be too big for this simple example purpose.
+			*/
+			var mov:MovieClip = Assets.getFlashMovie("BGMusic");
+			mov.gotoAndStop(2);
 
 			System.pauseForGCIfCollectionImminent(0.5);
 			log("Init scene done");

@@ -34,6 +34,7 @@ package display
         public function TimelineObject()
         {
 			super();
+			dispatching = false;
 		}
 		public function init():void { };
 		

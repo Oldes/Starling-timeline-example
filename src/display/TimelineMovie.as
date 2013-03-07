@@ -3,12 +3,16 @@ package display
     import flash.errors.IllegalOperationError;
 	import flash.geom.Matrix;
 	import flash.utils.ByteArray;
+	import starling.animation.DelayedCall;
 	import starling.display.DisplayObject;
 	import starling.core.Starling;
 	import starling.display.Quad;
     
     import starling.animation.IAnimatable;
     import starling.events.Event;
+	
+	import apparat.memory.Memory;
+	import apparat.memory.MemoryPool;
     
     /** Dispatched whenever the movie has displayed its last frame. */
     [Event(name="complete", type="starling.events.Event")]
@@ -25,35 +29,45 @@ package display
 		private var mFrameDuration:Number;
 		private var mFPS:Number;
 		
+		private var dcResume:DelayedCall;
+		
 		private var tmpMatrix:Matrix = new Matrix();
 		
-		private var mControlTags:ByteArray;
+		private var mControlTags:TimelineMemoryBlock;
+		private var mPointerHead:int;
+		private var mPointerTail:int;
+		private var mPointer:int;
 		
 		public var onFrameLabel:Function;
         
         /** Creates a TimelineMovie object **/  
-        public function TimelineMovie(controlTags:ByteArray, fps:Number=25)
+        public function TimelineMovie(memoryBlock:TimelineMemoryBlock, fps:Number=25)
         {
-			mControlTags = controlTags;
-			controlTags.position = 0;
-			mTotalFrames = controlTags.readUnsignedShort();
+			mPointerHead = memoryBlock.head;
+			mPointerTail = memoryBlock.tail;
+
+			mPointer = mPointerHead;
+			mTotalFrames = Memory.readUnsignedShort(mPointer);
+			mPointer += 2;
 			
             if (fps <= 0) throw new ArgumentError("Invalid fps: " + fps);
 			mFPS = fps;
+			init();
+        }
+        
+		override public function init():void {
+			removeChildren();
+			mPointer = mPointerHead + 2;
 			mCurrentTime = 0.0;
 			mCurrentFrame = 1;
 			mFrameDuration = 1.0 / fps;
 			play();
 			updateFrame();
-        }
-        
-		override public function init():void {
-			removeChildren();
-			mControlTags.position = 2;
-			mCurrentTime = 0.0;
-			mCurrentFrame = 1;
-			play();
-			updateFrame();
+		}
+		
+		override public function dispose():void {
+			log("Dispose TimelineMovie " + this, this.name);
+			release();
 		}
 		
         // playback methods
@@ -65,7 +79,7 @@ package display
 			if (frameNum == 0) return;
 			mCurrentFrame = frameNum;
 			mCurrentTime = mCurrentFrame * mFrameDuration;
-			mControlTags.position = 2;
+			mPointer = mPointerHead + 2;
 			updateFrame();
 			if(!mPlaying){
 				mPlaying = true;
@@ -78,13 +92,20 @@ package display
 			if (frameNum == 0) return;
 			mCurrentFrame = frame;
 			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
-			mControlTags.position = 2;
+			mPointer = mPointerHead + 2;
 			updateFrame();
 			if(mPlaying){
 				mPlaying = false;
 				Starling.juggler.remove(this);
 			}
         }
+		
+		public function forwardToLabel(label:String):void {
+			do {
+				updateFrame()
+			} while (label != mCurrentLabel);
+			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
+		}
 		
         /** Starts playback. Beware that the clip has to be added to a juggler, too! */
         public function play():void
@@ -97,9 +118,19 @@ package display
         }
         
         /** Pauses playback. */
-        public function pause():void
+        public function pause(delay:Number=0):void
         {
             mPlaying = false;
+			Starling.juggler.remove(this);
+			if (delay > 0) {
+				if (dcResume) {
+					Starling.juggler.remove(dcResume);
+					dcResume.reset(play, delay);
+					Starling.juggler.add(dcResume);
+				} else {
+					dcResume = Starling.juggler.delayCall(play, delay);
+				}
+			}
         }
         
         /** Stops playback, resetting "currentFrame" to zero. */
@@ -145,42 +176,52 @@ package display
 			var id:uint;
 			var depth:uint, flags:uint;
 			var obj:DisplayObject;
-			var spec:ByteArray = mControlTags;
 			var a:Number, b:Number, c:Number, d:Number, tx:Number, ty:Number;
 			var multR:Number, multG:Number, multB:Number;
-			//trace("updateFrame")
+			//trace("updateFrame "+name)
 			
+			var p:int = mPointer; //actuall memory pointer position
+
 			do {
-				opcode = spec.readUnsignedByte();
+				opcode = Memory.readUnsignedByte(p);
+				p++;
+				
 				switch(opcode) {
 					case cmdMoveDepth:
-						depth = spec.readUnsignedShort();
-						flags = spec.readUnsignedByte();
+						depth = Memory.readUnsignedShort(p);
+						flags = Memory.readUnsignedByte(p + 2);
+						p += 3;
+
 						obj = getChildAt(depth);
 						if (obj) {
-							tmpMatrix.tx = spec.readFloat();
-							tmpMatrix.ty = spec.readFloat();
+							tmpMatrix.tx = Memory.readFloat(p);
+							tmpMatrix.ty = Memory.readFloat(p + 4);
+							p += 8;
 							if(8 == (flags & 8)){//scale
-								tmpMatrix.a = spec.readFloat();
-								tmpMatrix.d = spec.readFloat();
+								tmpMatrix.a = Memory.readFloat(p);
+								tmpMatrix.d = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
 							if(16 == (flags & 16)){//skew
-								tmpMatrix.b = spec.readFloat();
-								tmpMatrix.c = spec.readFloat();
+								tmpMatrix.b = Memory.readFloat(p);
+								tmpMatrix.c = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.c = 
 								tmpMatrix.b = 0;
 							}
 							if (32 == (flags & 32)) {//alpha
-								obj.alpha = spec.readUnsignedByte() / 255;
+								obj.alpha = Memory.readUnsignedByte(p) / 255;
+								p++;
 							}
 							if (64 == (flags & 64)) {//color multiply
-								multR = spec.readUnsignedByte() / 255;
-								multG = spec.readUnsignedByte() / 255;
-								multB = spec.readUnsignedByte() / 255;
+								multR = Memory.readUnsignedByte(p)   / 255;
+								multG = Memory.readUnsignedByte(p + 1) / 255;
+								multB = Memory.readUnsignedByte(p + 2) / 255;
+								p += 3;
 								//log("Tint (Movie): ", multR, multG, multB);
 								if (obj is TimelineObject) {
 									TimelineObject(obj).setColorTransform(multR, multG, multB);
@@ -196,15 +237,17 @@ package display
 						break;
 						
 					case cmdShowFrame:
+						//trace("showFrame " + mCurrentFrame);
 						mCurrentFrame++;
 						notBreak = false;
 						break;
 						
 					case cmdPlaceObject:
 					case cmdReplaceObject:
-						id    = spec.readUnsignedShort();
-						depth = spec.readUnsignedShort();
-						flags = spec.readUnsignedByte();
+						id    = Memory.readUnsignedShort(p);
+						depth = Memory.readUnsignedShort(p+2);
+						flags = Memory.readUnsignedByte(p + 4);
+						p += 5;
 						switch(flags & 7) { //first 3 bits
 							case 0: //placing image
 								obj = Assets.getTimelineObjectByID(id);
@@ -217,31 +260,36 @@ package display
 								break;
 						}
 						if (obj) {
-							tmpMatrix.tx = spec.readFloat();
-							tmpMatrix.ty = spec.readFloat();
+							tmpMatrix.tx = Memory.readFloat(p);
+							tmpMatrix.ty = Memory.readFloat(p + 4);
+							p += 8;
 							if(8 == (flags & 8)){//scale
-								tmpMatrix.a = spec.readFloat();
-								tmpMatrix.d = spec.readFloat();
+								tmpMatrix.a = Memory.readFloat(p);
+								tmpMatrix.d = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
 							if(16 == (flags & 16)){//skew
-								tmpMatrix.b = spec.readFloat();
-								tmpMatrix.c = spec.readFloat();
+								tmpMatrix.b = Memory.readFloat(p);
+								tmpMatrix.c = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.c = 
 								tmpMatrix.b = 0;
 							}
 							if (32 == (flags & 32)) {//alpha
-								obj.alpha = spec.readUnsignedByte() / 255;
+								obj.alpha = Memory.readUnsignedByte(p) / 255;
+								p++;
 							} else {
 								obj.alpha = 1;
 							}
 							if (64 == (flags & 64)) {//color multiply
-								multR = spec.readUnsignedByte() / 255;
-								multG = spec.readUnsignedByte() / 255;
-								multB = spec.readUnsignedByte() / 255;
+								multR = Memory.readUnsignedByte(p)     / 255;
+								multG = Memory.readUnsignedByte(p + 1) / 255;
+								multB = Memory.readUnsignedByte(p + 2) / 255;
+								p += 3;
 								//log("Tint (Movie): ", multR, multG, multB);
 								if (obj is TimelineObject) {
 									TimelineObject(obj).setColorTransform(multR, multG, multB);
@@ -264,16 +312,20 @@ package display
 						break;
 						
 					case cmdRemoveDepth:
-						depth = spec.readUnsignedShort();
+						depth = Memory.readUnsignedShort(p);
+						p += 2;
 						removeChildAt(depth);
 						break;
 					case cmdLabel:
-						mCurrentLabel = spec.readUTF();
+						MemoryPool.buffer.position = p;
+						mCurrentLabel = MemoryPool.buffer.readUTF();
+						p = MemoryPool.buffer.position;
 						//log("LABEL: " + mCurrentLabel);
 						
 						break;
 					case cmdStartSound:
-						id    = spec.readUnsignedShort();
+						id = Memory.readUnsignedShort(p);
+						p += 2;
 						//log("SOUND: " + id);
 						break;
 					case cmdEnd: //end
@@ -286,7 +338,7 @@ package display
 						}
 						if(mLoop && (wasTime == mCurrentTime)){
 							removeChildren();
-							spec.position = 2; //first 2 bytes are used for frame count
+							mPointer = p = mPointerHead + 2; //first 2 bytes are used for frame count
 							//mCurrentFrame = 0;
 						} else {
 							stop();
@@ -298,6 +350,7 @@ package display
 						log("UNKNOWN opcode: " + opcode);
 				}
 			} while (notBreak);
+			mPointer = p;
 		}
         
         // IAnimatable
@@ -305,7 +358,6 @@ package display
         /** @inheritDoc */
         public function advanceTime(passedTime:Number):void
         {
-			//trace("advance.." + name);
             var previousFrame:int = mCurrentFrame;
             
             //if (mLoop && mCurrentTime == mTotalTime) { mCurrentTime = 0.0; mCurrentFrame = 0; }
@@ -313,7 +365,7 @@ package display
             
             mCurrentTime += passedTime;
 			while (mPlaying && mCurrentTime > (mCurrentFrame * mFrameDuration)) {
-				//trace(mCurrentFrame+" "+mCurrentTime+ " "+(mCurrentFrame * mFrameDuration))
+				//trace("========= "+mCurrentFrame+" "+mCurrentTime+ " "+(mCurrentFrame * mFrameDuration))
 				updateFrame();
 			}
 			
@@ -349,6 +401,7 @@ package display
         public function get fps():int { return mFPS; }
         public function set fps(value:int):void {
 			mFPS = value;
+			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
 			mFrameDuration = 1.0 / value;
         }
         

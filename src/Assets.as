@@ -5,6 +5,7 @@ package
 	 * @author Oldes
 	 */
 	import display.TextureAnim;
+	import display.TimelineMemoryBlock;
 	import display.TimelineMovie;
 	import display.TimelineObject;
 	import display.TimelineShape;
@@ -34,6 +35,7 @@ package
 	import starling.display.materials.StandardMaterial;
 	import starling.display.Quad;
 	import starling.display.Sprite;
+	import starling.utils.getNextPowerOfTwo;
     
 	import starling.core.Starling;
     import starling.text.BitmapFont;
@@ -42,6 +44,9 @@ package
     import starling.textures.TextureAtlas;
 	import starling.events.Event;
 
+	import apparat.memory.MemoryPool;
+	import apparat.memory.MemoryBlock;
+	import apparat.memory.Memory;
 	
 	public final class Assets 
 	{
@@ -50,10 +55,14 @@ package
 		private static var atlases:Array = new Array();
 		private static var movies:Array = new Array();
 		private static var objects:Array = new Array();
+		private static var flashMovies:Array = new Array();
 		
 		private static var namesByIDs:Array = new Array();
 		private static var IDsByNames:Array = new Array();
 		
+		private var mStrings:Vector.<String> = new Vector.<String>;
+		
+		private static var mTextureDefinitions:Array = new Array();
 		private static var spriteDefinitions:Array = new Array();
 		private static var shapeDefinitions:Array = new Array();
 		private static var shapeMaterials:Vector.<StandardMaterial> = new Vector.<StandardMaterial>;
@@ -84,26 +93,34 @@ package
 		private static const context:LoaderContext = new LoaderContext;
 		
 		private static const cmdUseLevel:int                 = 1;
-		private static const cmdLoadTexture:int              = 2;
-		private static const cmdInitTexture:int              = 3;
-		private static const cmdDefineImage:int              = 4;
-		private static const cmdStartMovie:int               = 5;
+		private static const cmdTextureData:int              = 2;
+		private static const cmdDefineImage:int              = 3;
+		private static const cmdStartMovie:int               = 4;
+		private static const cmdEndMovie:int                 = 5;
 		private static const cmdAddMovieTexture:int          = 6;
 		private static const cmdAddMovieTextureWithFrame:int = 7;
-		private static const cmdEndMovie:int                 = 8;
-		private static const cmdLoadSWF:int                  = 9;
-		private static const cmdInitSWF:int                  = 10;
-		private static const cmdATFTexture:int               = 11;
-		private static const cmdATFTextureMovie:int          = 12;
-		private static const cmdTimelineObject:int           = 13;
-		private static const cmdTimelineName:int             = 14;
-		private static const cmdTimelineShape:int            = 15;
-		private static const cmdStartMovie2:int              = 16;
-		private static const cmdWalkData:int                 = 17;
+		private static const cmdLoadSWF:int                  = 8;
+		
+		private static const cmdTimelineData:int             = 10;
+		private static const cmdTimelineObject:int           = 11;
+		private static const cmdTimelineShape:int            = 12;
+		
+		private static const cmdWalkData:int                 = 20;
+		
+		private static const mMemory:ByteArray = new ByteArray();
+		private static const DOMAIN_MEMORY_LENGTH:int = 20000000;
+		
+		private var loadersCounter:int = 0;
 		
 		public function Assets() 
 		{
 			log("Assets");
+
+			// Initialize the MemoryPool with default settings.
+			//IT'S NOT POSSIBLE TO CHANGE THE MEMORY POOL SIZE!
+			//So you should choose such a size, which will be enough for all app's life-time!
+			MemoryPool.initialize(50000);
+			
 			context.allowCodeImport = true;
 			context.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;;
 			inBuffer = new ByteArray();
@@ -133,20 +150,23 @@ package
 				
 				var sourceFile:File = File.applicationDirectory.resolvePath("Data/" + currentFile + ".lvl");
 				bValidateStream = true;
-				trace("opening FS " + currentFile);
+				//trace("opening FS " + currentFile);
 				fs = new FileStream();
 				fs.endian = Endian.LITTLE_ENDIAN;
+				//fs.addEventListener(ProgressEvent.PROGRESS, onProgress);
 				fs.addEventListener(flash.events.Event.COMPLETE, onProcessCommands);
-				fs.open(sourceFile, FileMode.READ);	onProcessCommands();
-			} else {				
+				fs.openAsync(sourceFile, FileMode.READ);
+			} else if(loadersCounter==0) {				
 				log();
 				log("ALL PRELOADED " + (getTimer() - started) + "ms", "pixelsProcessed: "+pixelsProcessed);
 				if (fOnPreloaded!=null) fOnPreloaded();
 			}
 		}
 		
-		private function onProcessCommands(e:flash.events.Event=null):void{
-			trace("preloaded Texture... " + currentFile +" "+(getTimer()-time));
+		private function onProgress(e:flash.events.Event = null):void {
+			trace(">" + fs.bytesAvailable);
+		}
+		private function onProcessCommands(e:flash.events.Event=null):void {
 			var textureAtlas:TextureAtlas;
 			var texture:Texture;
 			var command:int, numBytes:int;
@@ -155,7 +175,10 @@ package
 			var region:Rectangle;
 			var frame:Rectangle;
 			var bytes:ByteArray
-			
+			var dataBlock:MemoryBlock;
+			var ldr:Loader;
+			var ctx:LoaderContext;
+
 			if ( bValidateStream ) {
 				if (
 					   fs.readByte() != 76 //"L"
@@ -168,166 +191,241 @@ package
 			}
 			
 			while ((command = fs.readUnsignedByte()) > 0) {
-				//trace("COMMAND: " + command)
+				trace("COMMAND: " + command)
 				switch(command) {
 					case cmdUseLevel:
 						activeLevel = fs.readUTF();
 						trace("use-level: " + activeLevel);
+						numId = fs.readUnsignedShort();
+						mStrings.length = 0;
+						for (var i:int = 0; i < numId; i++) {
+							mStrings[i] = fs.readUTF();
+						}
+						trace("String Pool length: " + numId);
 						break;
-					case cmdLoadTexture:
-						numBytes = fs.readUnsignedInt();
-						log("textureAtlas "+" "+numBytes)
-						fs.readBytes(inBuffer, 0, numBytes);
-						loader.loadBytes(inBuffer, context);
-						return;
-					case cmdInitTexture:
-						bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
-						activeTextureName = fs.readUTF();
-						log("loaded file " + activeTextureName);
-						//pixelsProcessed += (bitmapData.width * bitmapData.height);
-						activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
-						atlasTextures[activeTextureName] = activeAtlasTexture;
-						bitmapData.dispose();
-						inBuffer.clear();
-						break;
-					case cmdDefineImage:
-						id = fs.readUTF();
-						region = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						//trace("addregion:" + id+" "+region);
-						//activeTextureAtlas.addRegion(id, inRectangle);
-						//trace("image: " + activeLevel + "/" + activeTextureName + "/" + id);
-						images[activeLevel+"/"+activeTextureName+"/"+id] = new Image(Texture.fromTexture(activeAtlasTexture, region));
-						break;
-					case cmdStartMovie:
-						//trace("start-movie");
-						activeMovieName = fs.readUTF();
-						activeMovieTextures = new Vector.<Texture>;
+					case cmdTextureData:
+						activeTextureName = mStrings[fs.readUnsignedShort()];
+						var isATF:Boolean = (fs.readUnsignedByte() == 1)
+						if (isATF) {
+							//atf stream
+							numBytes = fs.readUnsignedInt();
+							fs.readBytes(inBuffer, 0, numBytes);
+							log("ATF textureAtlas "+activeTextureName+" "+numBytes)
+							activeAtlasTexture = Texture.fromAtfData(inBuffer);
+							atlasTextures[activeTextureName] = activeAtlasTexture;
+							inBuffer.clear();
+						}
 						
-						bitmapData = Bitmap(LoaderInfo(e.target).content).bitmapData;
-						activeAtlasTexture = Texture.fromBitmapData(bitmapData, false);
-						atlasTextures[activeMovieName] = activeAtlasTexture;
-						bitmapData.dispose();
-						break;
-					case cmdAddMovieTexture:
-						region = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region));
-						break;
-					case cmdAddMovieTextureWithFrame:
-						region = new Rectangle();
-						frame = new Rectangle();
-						region.x = fs.readUnsignedShort();
-						region.y = fs.readUnsignedShort();
-						region.width = fs.readUnsignedShort();
-						region.height = fs.readUnsignedShort();
-						frame.x = fs.readShort();
-						frame.y = fs.readShort();
-						frame.width = fs.readUnsignedShort();
-						frame.height = fs.readUnsignedShort();
-						//trace("add-texture:" + region + " " + frame);
-						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region, frame));
-						break;
-					case cmdEndMovie:
-						movies[activeMovieName] = new TextureAnim(activeMovieTextures, 25);
-						activeMovieTextures.length = 0;
-						activeMovieTextures = null;
+						numBytes = fs.readUnsignedInt(); //specification's data block size
+						
+						//trace("NUMBYTES"+ numBytes);
+						
+						dataBlock = MemoryPool.allocate( numBytes );
+						MemoryPool.buffer.position = dataBlock.position;
+						fs.readBytes(MemoryPool.buffer, dataBlock.position, numBytes);
+						
+						if (isATF) {
+							processTextureAssets(activeAtlasTexture, activeTextureName, dataBlock);
+						} else {
+							mTextureDefinitions[activeTextureName] = dataBlock;
+							numBytes = fs.readUnsignedInt(); //size of the not compressed image
+							log("BMP textureAtlas "+activeTextureName+" "+numBytes)
+							fs.readBytes(inBuffer, 0, numBytes);
+							ldr = new Loader();
+							ctx = new LoaderContext();
+							ctx.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;
+							ctx.parameters = {"id": activeTextureName};
+							ldr.contentLoaderInfo.addEventListener(flash.events.Event.COMPLETE, onLoaderComplete);
+							ldr.loadBytes(inBuffer, ctx);
+							loadersCounter++;
+							inBuffer.clear();
+						}
 						break;
 					case cmdLoadSWF:
 						id = fs.readUTF();
 						numBytes = fs.readUnsignedInt();
 						//trace("load-swf: " + id + " " + numBytes);
 						fs.readBytes(inBuffer, 0, numBytes);
-						loader.loadBytes(inBuffer, context);
-						return;
-					case cmdInitSWF:
-						log("SWF loaded:" + LoaderInfo(e.target).content);
-						var mov:DisplayObjectContainer = DisplayObjectContainer(LoaderInfo(e.target).content);
-						var n:int = mov.numChildren;
-						var m:DisplayObjectContainer;
-						while (n > 0) {
-							n--;
-							m = mov.getChildAt(n) as DisplayObjectContainer;
-							if (m) {
-								stopAllInSWF(m);
-								if (m is MovieClip && m.name) {
-									var mc:MovieClip = MovieClip(m);
-									log("SWF: " + m.name);
-									mc.stop();
-									movies[m.name] = m;	
-								}
+						ldr = new Loader();
+						ctx = new LoaderContext();
+						ctx.allowCodeImport = true;
+						ctx.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;
+						ctx.parameters = {"id": id};
+						ldr.contentLoaderInfo.addEventListener(flash.events.Event.COMPLETE, onLoaderComplete);
+						ldr.loadBytes(inBuffer, ctx);
+						loadersCounter++;
+						inBuffer.clear();
+						break;
+					
+					case cmdTimelineData:
+						numBytes = fs.readUnsignedInt();
+						trace("TimelineData bytes " +  numBytes);
+						//fs.readBytes(inBuffer, 0, numBytes);
+						dataBlock = MemoryPool.allocate( numBytes );
+						MemoryPool.buffer.position = dataBlock.position;
+						while ((command = fs.readUnsignedByte()) > 0) {
+							switch(command){
+								case cmdTimelineObject:
+									numId = fs.readUnsignedShort();
+									numBytes = fs.readUnsignedInt();
+									fs.readBytes(inBuffer, 0, numBytes);
+									spriteDefinitions[numId] = new TimelineMemoryBlock(dataBlock, MemoryPool.buffer.position, numBytes);
+									MemoryPool.buffer.writeBytes(inBuffer);
+									inBuffer.clear();
+									//trace("Definition " + numId+" > "+ numBytes);
+									break;
+								case cmdTimelineShape:
+									numId = fs.readUnsignedShort();
+									numBytes = fs.readUnsignedInt();
+									fs.readBytes(inBuffer, 0, numBytes);
+									shapeDefinitions[numId] = new TimelineMemoryBlock(dataBlock, MemoryPool.buffer.position, numBytes);
+									MemoryPool.buffer.writeBytes(inBuffer);
+									inBuffer.clear();
+									trace("Shape " + numId+" > "+ numBytes);
+									break;
+								default:
+									throw new Error("Invalid Timeline command");
 							}
 						}
-						inBuffer.clear();
-						break;
-					case cmdATFTexture:
-						numBytes = fs.readUnsignedInt();
-						time = getTimer();
-						fs.readBytes(inBuffer, 0, numBytes);
-						log("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
-						activeTextureName = fs.readUTF();
-						activeAtlasTexture = Texture.fromAtfData(inBuffer);
-						atlasTextures[activeTextureName] = activeAtlasTexture;
-						inBuffer.clear();
-						break;
-					case cmdATFTextureMovie:
-						numBytes = fs.readUnsignedInt();
-						time = getTimer();
-						fs.readBytes(inBuffer, 0, numBytes);
-						log("ATF textureAtlas "+" "+numBytes+" "+(getTimer()-time))
-						activeMovieName = fs.readUTF();
-						activeMovieTextures = new Vector.<Texture>;
-						
-						activeAtlasTexture = Texture.fromAtfData(inBuffer);
-						atlasTextures[activeMovieName] = activeAtlasTexture;
-						inBuffer.clear();
-						break;
-					case cmdTimelineObject:
-						numId = fs.readUnsignedShort();
-						numBytes = fs.readUnsignedInt();
-						bytes = new ByteArray();
-						fs.readBytes(bytes, 0, numBytes);
-						bytes.endian = Endian.LITTLE_ENDIAN;
-						spriteDefinitions[numId] = bytes;
-						log("Definition " + numId, numBytes);
-						break;
-					case cmdTimelineName:
-						numId = fs.readUnsignedShort();
-						id    = fs.readUTF();
-						log("NameDefinition: " + numId, id);
-						namesByIDs[numId] = id;
-						IDsByNames[id] = numId;
-						break;
-					case cmdTimelineShape:
-						numId = fs.readUnsignedShort();
-						numBytes = fs.readUnsignedInt();
-						bytes = new ByteArray();
-						fs.readBytes(bytes, 0, numBytes);
-						bytes.endian = Endian.LITTLE_ENDIAN;
-						shapeDefinitions[numId] = bytes;
-						log("Shape " + numId, numBytes);
-						break;
-					case cmdStartMovie2:
-						trace("start-movie2");
-						activeMovieName = fs.readUTF();
-						activeMovieTextures = new Vector.<Texture>;
+						var n:int = fs.readUnsignedInt();
+						while (n-- > 0) {
+							numId = fs.readUnsignedShort();
+							id    = fs.readUTF();
+							//trace("NameDefinition: " + numId+" > "+ id);
+							namesByIDs[numId] = id;
+							IDsByNames[id] = numId;
+						}
 						break;
 					default:
-						log("Invalid command " + command);
+						trace("Invalid command " + command);
 						return;
 				}
 			}
+			log("time: "+(getTimer() - started));
 			fs.close();
 			fs = null;
 			preloadFile();
 		}
+		
+		private function processTextureAssets(activeAtlasTexture:Texture, activeTextureName:String, data:MemoryBlock):void {
+			log("Making texture assets " + activeTextureName);
+			trace("DATA " + data.length);
+			
+			var command:int;
+			var id:String;
+			var region:Rectangle;
+			var frame:Rectangle;
+			
+			var p:int = data.position; //pointer
+			while ((command = Memory.readUnsignedByte(p++)) > 0) {
+				switch(command){
+					case cmdDefineImage:
+						id = mStrings[Memory.readUnsignedShort(p)];
+						region = new Rectangle();
+						region.x      = Memory.readUnsignedShort(p+2);
+						region.y      = Memory.readUnsignedShort(p+4);
+						region.width  = Memory.readUnsignedShort(p+6);
+						region.height = Memory.readUnsignedShort(p+8);
+						p += 10;
+						images[activeLevel + "/" + activeTextureName + "/" + id] = new Image(Texture.fromTexture(activeAtlasTexture, region));
+						
+						break;
+					case cmdStartMovie:
+						trace("start-movie2");
+						activeMovieTextures = new Vector.<Texture>;
+						activeMovieName = mStrings[Memory.readUnsignedShort(p)];
+						p += 2;
+						break;
+					case cmdEndMovie:
+						trace("end-movie " + activeMovieName);
+						var ta:TextureAnim = new TextureAnim(activeMovieTextures, 25);
+						var count:int = Memory.readUnsignedShort(p); //number of labels
+						p += 2;
+						while (count-- > 0) {
+							ta.addLabel(Memory.readUnsignedShort(p), mStrings[Memory.readUnsignedShort(p + 2)]);
+							p += 4;
+						}
+						ta.name = activeMovieName;
+						movies[activeMovieName] = ta;
+						activeMovieTextures.length = 0;
+						activeMovieTextures = null;
+						break;
+					case cmdAddMovieTexture:
+						region = new Rectangle();
+						region.x      = Memory.readUnsignedShort(p);
+						region.y      = Memory.readUnsignedShort(p+2);
+						region.width  = Memory.readUnsignedShort(p+4);
+						region.height = Memory.readUnsignedShort(p+6);
+						p += 8;
+						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region));
+						break;
+					case cmdAddMovieTextureWithFrame:
+						region = new Rectangle();
+						frame  = new Rectangle();
+						region.x      = Memory.readUnsignedShort(p);
+						region.y      = Memory.readUnsignedShort(p+2);
+						region.width  = Memory.readUnsignedShort(p+4);
+						region.height = Memory.readUnsignedShort(p+6);
+						frame.x       = Memory.readInt(p + 8);
+						frame.y       = Memory.readInt(p + 12);
+						frame.width   = Memory.readUnsignedShort(p + 16);
+						frame.height  = Memory.readUnsignedShort(p + 18);
+						p += 20;
+						//trace("add-texture:" + region + " " + frame);
+						activeMovieTextures.push(Texture.fromTexture(activeAtlasTexture, region, frame));
+						break;
+					
 
+					default:
+						throw new Error("Invalid texture data definition command");
+				}
+			}
+			
+			// Free the space used by the data as we do not need it any longer
+			MemoryPool.free( data );
+		}
+		private function onLoaderComplete(e:flash.events.Event):void {
+			e.target.removeEventListener(flash.events.Event.COMPLETE, onLoaderComplete);
+			var content:Object = e.target.content;
+			var name:String = LoaderInfo(e.target).parameters.id;
+			if(content is Bitmap){
+				trace("LOADED BMP " + name);
+				var bitmapData:BitmapData = Bitmap(content).bitmapData;
+				var texture:Texture = Texture.fromBitmapData(bitmapData, false);
+				atlasTextures[name] = texture;
+				var data:MemoryBlock = mTextureDefinitions[name];
+				
+				processTextureAssets(texture, name, data);
+				
+				bitmapData.dispose();
+				LoaderInfo(e.target).loader.unload();
+			} else {
+				trace("LOADED SWF" + name);
+				var mov:DisplayObjectContainer = DisplayObjectContainer(content);
+				var n:int = mov.numChildren;
+				var m:DisplayObjectContainer;
+				while (n-- > 0) {
+					m = mov.getChildAt(n) as DisplayObjectContainer;
+					if (m) {
+						stopAllInSWF(m);
+						if (m is MovieClip && m.name) {
+							var mc:MovieClip = MovieClip(m);
+							log("SWF: " + m.name);
+							mc.stop();
+							flashMovies[m.name] = m;	
+						}
+					}
+				}
+				//TODO: I should store the loader so I could unload it correctly when it's not needed anymore!
+			}
+			
+			if (--loadersCounter == 0) {
+				log();
+				log("ALL PRELOADED " + (getTimer() - started) + "ms", "pixelsProcessed: "+pixelsProcessed);
+				if (fOnPreloaded!=null) fOnPreloaded();
+			}
+			
+		}
 		
 		
 		private function onContextCreated(e:starling.events.Event):void {
@@ -337,17 +435,30 @@ package
 		
 		public static function getImage(name:String):Image
         {
-            return images[name];
+			var img:Image = images[name] as Image;
+			img.touchable = false;
+            return img;
         }
 		public static function getFlashMovie(name:String):MovieClip {
-			return movies[name];
+			var movie:MovieClip = flashMovies[name];
+			if (movie == null) {
+				throw new Error ("Unknown FlashMovie with name: " + name);
+			}
+			return movie;
 		}
 		public static function getTextureAtlas(name:String):TextureAtlas {
 			return atlases[name];
 		}
 		public static function getStarlingMovie(name:String):TextureAnim {
 			//log("GetMovie: " + name);
-			return movies[name];
+			var anim:TextureAnim = movies[name];
+			if (anim == null) {
+				throw new Error("Unknown movie with name: " + name);
+			}
+			if (anim.parent) {
+				anim = new TextureAnim(anim.textures, anim.fps);
+			}
+			return anim;
 		}
 		
 		public static function overrideTimelineObject(name:String, object:DisplayObject):Boolean {
@@ -364,11 +475,11 @@ package
 			pool.push(object);
 			return true;
 		}
-		public static function getTimelineObject(name:String, asSprite:Boolean=false):DisplayObject {
-			log("getTimelineObject " + name);
-			return getTimelineObjectByID(IDsByNames[name], asSprite);
+		public static function getTimelineObject(name:String, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineObject " + name);
+			return getTimelineObjectByID(IDsByNames[name], asSprite, touchable);
 		}
-		public static function getTimelineObjectByID(id:uint, asSprite:Boolean=false):DisplayObject {
+		public static function getTimelineObjectByID(id:uint, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
 			//log("getTimelineObject: " + id + " "+namesByIDs[id]);
 			
 			var object:DisplayObject;
@@ -390,21 +501,16 @@ package
 			}
 			if (!object) {
 				var name:String = namesByIDs[id];
-				var spec:ByteArray = spriteDefinitions[id];
-			
+				var spec:TimelineMemoryBlock = spriteDefinitions[id];
+				
 				if (spec) {
-					spec.position = 0;
-					var newSpec:ByteArray = new ByteArray();
-					spec.readBytes(newSpec);
-					newSpec.endian = Endian.LITTLE_ENDIAN;
-					newSpec.position = 0;
-					var numFrames:uint = newSpec.readUnsignedShort();
+					var numFrames:uint = Memory.readUnsignedShort(spec.head);
 					//log("Creating new TimelineObject", id, spec.length, numFrames);
 					
 					if (numFrames == 1) {
-						object = new TimelineSprite(newSpec) as DisplayObject;
+						object = new TimelineSprite(spec) as DisplayObject;
 					} else {
-						object = new TimelineMovie(newSpec) as DisplayObject;
+						object = new TimelineMovie(spec) as DisplayObject;
 					}
 					TimelineObject(object).removeTint();
 					object.name = name?name:String(id);
@@ -429,8 +535,10 @@ package
 				}
 				pool.push(object);
 			}
+			object.touchable = touchable;
 			if (asSprite) {
 				var spr:Sprite = new Sprite();
+				spr.name = name?name:String(id);
 				spr.addChild(object);
 				return spr;
 			}
@@ -498,8 +606,7 @@ package
 		private function stopAllInSWF(swf:DisplayObjectContainer):void {
 			var n:int = swf.numChildren;
 			var child:flash.display.DisplayObject;
-			while (n > 0) {
-				n--;
+			while (n-- > 0) {
 				child = swf.getChildAt(n);
 				if (child is DisplayObjectContainer) {
 					//log("stoping.. " + child, child.name);

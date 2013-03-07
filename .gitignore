@@ -1,2 +1,4 @@
 dist/*
 obj/*.old
+*.dxt
+*.etc

@@ -5,74 +5,93 @@ package display
 	import starling.display.DisplayObject;
 	import starling.display.Quad;
     
+	import apparat.memory.Memory;
+	import apparat.memory.MemoryPool;
     
     public class TimelineSprite extends TimelineObject
     {
-		private var mControlTags:ByteArray;
-        
-        public function TimelineSprite(controlTags:ByteArray)
+		//private var mControlTags:TimelineMemoryBlock;
+        private var mPointerHead:int;
+		private var mPointerTail:int;
+		private var mPointer:int;
+		
+        public function TimelineSprite(memoryBlock:TimelineMemoryBlock)
         {
+			mPointerHead = memoryBlock.head;
+			mPointerTail = memoryBlock.tail;
+			mPointer = mPointerHead;
+			
 			super();
-			var spec:ByteArray = mControlTags = controlTags;
 			init();
         }
 		override public function init():void {
 			removeChildren();
-			var spec:ByteArray = mControlTags;
-			spec.position = 2; //first 2 bytes are used for frame count
+			
+			//trace("SPRITE INIT " + name);
+			
+			var p:int = mPointerHead + 2; //memory pointer - first 2 bytes are used for frame count (always 1 in this case)
 			
 			var notBreak:Boolean = true;
 			var id:uint, depth:uint, opcode:uint, flags:uint;
 			var obj:DisplayObject;
 			var tmpMatrix:Matrix = new Matrix();
 			var multR:Number, multG:Number, multB:Number;
+			
 			do {
-				opcode = spec.readUnsignedByte();
+				opcode = Memory.readUnsignedByte(p);
+				p++;
 				//log("spriteOpcode: " +opcode);
 				switch(opcode) {
 					
 					case cmdPlaceObject:
 					case cmdReplaceObject:
-						id    = spec.readUnsignedShort();
-						depth = spec.readUnsignedShort();
-						flags = spec.readUnsignedByte();
+						id    = Memory.readUnsignedShort(p);
+						depth = Memory.readUnsignedShort(p + 2);
+						flags = Memory.readUnsignedByte(p + 4);
+						p += 5;
+						//trace("Sprite FLAGS: " + flags + " " + (flags & 7));
 						switch(flags & 7) { //first 3 bits
 							case 0: //placing image
-								obj = Assets.getTimelineObjectByID(id);
+								obj = Assets.getTimelineObjectByID(id, false, touchable);
 								break;
 							case 1: //placing object
-								obj = Assets.getTimelineObjectByID(id);
+								obj = Assets.getTimelineObjectByID(id, false, touchable);
 								break;
 							case 2: //placing shape
 								obj = Assets.getTimelineShapeByID(id);
 								break;
 						}
 						if (obj) {
-							tmpMatrix.tx = spec.readFloat();
-							tmpMatrix.ty = spec.readFloat();
+							tmpMatrix.tx = Memory.readFloat(p);
+							tmpMatrix.ty = Memory.readFloat(p + 4);
+							p += 8;
 							if(8 == (flags & 8)){//scale
-								tmpMatrix.a = spec.readFloat();
-								tmpMatrix.d = spec.readFloat();
+								tmpMatrix.a = Memory.readFloat(p);
+								tmpMatrix.d = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
 							if(16 == (flags & 16)){//skew
-								tmpMatrix.b = spec.readFloat();
-								tmpMatrix.c = spec.readFloat();
+								tmpMatrix.b = Memory.readFloat(p);
+								tmpMatrix.c = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.c = 
 								tmpMatrix.b = 0;
 							}
 							if (32 == (flags & 32)) {//alpha
-								obj.alpha = spec.readUnsignedByte() / 255;
+								obj.alpha = Memory.readUnsignedByte(p) / 255;
+								p++;
 							} else {
 								obj.alpha = 1;
 							}
 							if (64 == (flags & 64)) {//color multiply
-								multR = spec.readUnsignedByte() / 255;
-								multG = spec.readUnsignedByte() / 255;
-								multB = spec.readUnsignedByte() / 255;
+								multR = Memory.readUnsignedByte(p) / 255;
+								multG = Memory.readUnsignedByte(p + 1) / 255;
+								multB = Memory.readUnsignedByte(p + 2) / 255;
+								p += 3;
 								//log("Tint (SPRITE): ", multR, multG, multB);
 								if (obj is TimelineObject) {
 									TimelineObject(obj).setColorTransform(multR, multG, multB);
@@ -97,38 +116,45 @@ package display
 						break;
 						
 					case cmdRemoveDepth:
-						depth = spec.readUnsignedShort();
+						depth = Memory.readUnsignedShort(p);
+						p += 2;
 						removeChildAt(depth);
 						break;
 						
 					case cmdMoveDepth:
-						depth = spec.readUnsignedShort();
-						flags = spec.readUnsignedByte();
+						depth = Memory.readUnsignedShort(p);
+						flags = Memory.readUnsignedByte(p + 2);
+						p += 3;
 						obj = getChildAt(depth);
 						if (obj) {
-							tmpMatrix.tx = spec.readFloat();
-							tmpMatrix.ty = spec.readFloat();
+							tmpMatrix.tx = Memory.readFloat(p);
+							tmpMatrix.ty = Memory.readFloat(p + 4);
+							p += 8;
 							if(8 == (flags & 8)){//scale
-								tmpMatrix.a = spec.readFloat();
-								tmpMatrix.d = spec.readFloat();
+								tmpMatrix.a = Memory.readFloat(p);
+								tmpMatrix.d = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
 							if(16 == (flags & 16)){//skew
-								tmpMatrix.b = spec.readFloat();
-								tmpMatrix.c = spec.readFloat();
+								tmpMatrix.b = Memory.readFloat(p);
+								tmpMatrix.c = Memory.readFloat(p + 4);
+								p += 8;
 							} else {
 								tmpMatrix.c = 
 								tmpMatrix.b = 0;
 							}
 							if (32 == (flags & 32)) {//alpha
-								obj.alpha = spec.readUnsignedByte() / 255;
+								obj.alpha = Memory.readUnsignedByte(p) / 255;
+								p++;
 							}
 							if (64 == (flags & 64)) {//color multiply
-								multR = spec.readUnsignedByte() / 255;
-								multG = spec.readUnsignedByte() / 255;
-								multB = spec.readUnsignedByte() / 255;
+								multR = Memory.readUnsignedByte(p) / 255;
+								multG = Memory.readUnsignedByte(p + 1) / 255;
+								multB = Memory.readUnsignedByte(p + 2) / 255;
+								p += 3;
 								//log("Tint (Movie): ", multR, multG, multB);
 								if (obj is TimelineObject) {
 									TimelineObject(obj).setColorTransform(multR, multG, multB);
@@ -166,6 +192,5 @@ package display
 			} else if (obj is TimelineSprite) TimelineSprite(obj).release();
 			return super.removeChildAt(index, dispose);
 		}
-
 	}
 }
