@@ -3,14 +3,14 @@ package display
 	import flash.geom.Matrix;
 	import flash.utils.ByteArray;
 	import starling.display.DisplayObject;
+	import starling.display.DisplayObjectContainer;
 	import starling.display.Quad;
     
 	import apparat.memory.Memory;
 	import apparat.memory.MemoryPool;
-    
+
     public class TimelineSprite extends TimelineObject
     {
-		//private var mControlTags:TimelineMemoryBlock;
         private var mPointerHead:int;
 		private var mPointerTail:int;
 		private var mPointer:int;
@@ -26,9 +26,6 @@ package display
         }
 		override public function init():void {
 			removeChildren();
-			
-			//trace("SPRITE INIT " + name);
-			
 			var p:int = mPointerHead + 2; //memory pointer - first 2 bytes are used for frame count (always 1 in this case)
 			
 			var notBreak:Boolean = true;
@@ -36,7 +33,6 @@ package display
 			var obj:DisplayObject;
 			var tmpMatrix:Matrix = new Matrix();
 			var multR:Number, multG:Number, multB:Number;
-			
 			do {
 				opcode = Memory.readUnsignedByte(p);
 				p++;
@@ -62,10 +58,15 @@ package display
 								break;
 						}
 						if (obj) {
-							tmpMatrix.tx = Memory.readFloat(p);
-							tmpMatrix.ty = Memory.readFloat(p + 4);
-							p += 8;
-							if(8 == (flags & 8)){//scale
+							if (8 == (flags & 8)) {//xy
+								tmpMatrix.tx = Memory.readFloat(p);
+								tmpMatrix.ty = Memory.readFloat(p + 4);
+								p += 8;
+							} else {
+								tmpMatrix.tx = 0;
+								tmpMatrix.ty = 0;
+							}
+							if(16 == (flags & 16)){//scale
 								tmpMatrix.a = Memory.readFloat(p);
 								tmpMatrix.d = Memory.readFloat(p + 4);
 								p += 8;
@@ -73,7 +74,7 @@ package display
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
-							if(16 == (flags & 16)){//skew
+							if(32 == (flags & 32)){//skew
 								tmpMatrix.b = Memory.readFloat(p);
 								tmpMatrix.c = Memory.readFloat(p + 4);
 								p += 8;
@@ -81,13 +82,13 @@ package display
 								tmpMatrix.c = 
 								tmpMatrix.b = 0;
 							}
-							if (32 == (flags & 32)) {//alpha
+							if (64 == (flags & 64)) {//alpha
 								obj.alpha = Memory.readUnsignedByte(p) / 255;
 								p++;
 							} else {
 								obj.alpha = 1;
 							}
-							if (64 == (flags & 64)) {//color multiply
+							if (128 == (flags & 128)) {//color multiply
 								multR = Memory.readUnsignedByte(p) / 255;
 								multG = Memory.readUnsignedByte(p + 1) / 255;
 								multB = Memory.readUnsignedByte(p + 2) / 255;
@@ -112,6 +113,10 @@ package display
 							} else {
 								replaceChildAt(obj, depth);
 							}
+							
+							if (dispatching && obj is DisplayObjectContainer) {
+								DisplayObjectContainer(obj).setDispatching(true);
+							}
 						}
 						break;
 						
@@ -121,7 +126,7 @@ package display
 						removeChildAt(depth);
 						break;
 						
-					case cmdMoveDepth:
+					/*case cmdMoveDepth:
 						depth = Memory.readUnsignedShort(p);
 						flags = Memory.readUnsignedByte(p + 2);
 						p += 3;
@@ -166,7 +171,7 @@ package display
 								}
 							}
 							obj.transformationMatrix = tmpMatrix;
-						}
+						}*/
 						break;
 						
 					case cmdShowFrame:
@@ -192,5 +197,6 @@ package display
 			} else if (obj is TimelineSprite) TimelineSprite(obj).release();
 			return super.removeChildAt(index, dispose);
 		}
+
 	}
 }

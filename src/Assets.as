@@ -54,9 +54,11 @@ package
 		private static var atlasTextures:Array = new Array();
 		private static var atlases:Array = new Array();
 		private static var movies:Array = new Array();
-		private static var objects:Array = new Array();
 		private static var flashMovies:Array = new Array();
-		
+		private static var objects:Array = new Array();
+		private static var swfLoaders:Array = new Array();
+		private static var sounds:Array = new Array();
+
 		private static var namesByIDs:Array = new Array();
 		private static var IDsByNames:Array = new Array();
 		
@@ -90,6 +92,8 @@ package
 		private var activeMovieName:String;
 		private var activeMovieTextures:Vector.<Texture>;
 		private var activeAtlasTexture:Texture;
+		private var loadersCounter:int = 0;
+		
 		private static const context:LoaderContext = new LoaderContext;
 		
 		private static const cmdUseLevel:int                 = 1;
@@ -105,12 +109,12 @@ package
 		private static const cmdTimelineObject:int           = 11;
 		private static const cmdTimelineShape:int            = 12;
 		
+		private static const cmdDefineSound:int              = 15;
+		
 		private static const cmdWalkData:int                 = 20;
 		
 		private static const mMemory:ByteArray = new ByteArray();
-		private static const DOMAIN_MEMORY_LENGTH:int = 20000000;
-		
-		private var loadersCounter:int = 0;
+		private static const DOMAIN_MEMORY_LENGTH:int = 50000;
 		
 		public function Assets() 
 		{
@@ -119,7 +123,7 @@ package
 			// Initialize the MemoryPool with default settings.
 			//IT'S NOT POSSIBLE TO CHANGE THE MEMORY POOL SIZE!
 			//So you should choose such a size, which will be enough for all app's life-time!
-			MemoryPool.initialize(50000);
+			MemoryPool.initialize(DOMAIN_MEMORY_LENGTH);
 			
 			context.allowCodeImport = true;
 			context.imageDecodingPolicy = ImageDecodingPolicy.ON_LOAD;;
@@ -154,8 +158,9 @@ package
 				fs = new FileStream();
 				fs.endian = Endian.LITTLE_ENDIAN;
 				//fs.addEventListener(ProgressEvent.PROGRESS, onProgress);
-				fs.addEventListener(flash.events.Event.COMPLETE, onProcessCommands);
-				fs.openAsync(sourceFile, FileMode.READ);
+				//fs.addEventListener(flash.events.Event.COMPLETE, onProcessCommands);
+				//fs.openAsync(sourceFile, FileMode.READ);
+				fs.open(sourceFile, FileMode.READ); onProcessCommands();
 			} else if(loadersCounter==0) {				
 				log();
 				log("ALL PRELOADED " + (getTimer() - started) + "ms", "pixelsProcessed: "+pixelsProcessed);
@@ -166,7 +171,8 @@ package
 		private function onProgress(e:flash.events.Event = null):void {
 			trace(">" + fs.bytesAvailable);
 		}
-		private function onProcessCommands(e:flash.events.Event=null):void {
+		private function onProcessCommands(e:flash.events.Event = null):void {
+			trace("preloaded Texture... " + currentFile +" "+(getTimer()-time));
 			var textureAtlas:TextureAtlas;
 			var texture:Texture;
 			var command:int, numBytes:int;
@@ -175,6 +181,7 @@ package
 			var region:Rectangle;
 			var frame:Rectangle;
 			var bytes:ByteArray
+			var i:int, count:int;
 			var dataBlock:MemoryBlock;
 			var ldr:Loader;
 			var ctx:LoaderContext;
@@ -191,14 +198,14 @@ package
 			}
 			
 			while ((command = fs.readUnsignedByte()) > 0) {
-				trace("COMMAND: " + command)
+				//trace("COMMAND: " + command)
 				switch(command) {
 					case cmdUseLevel:
 						activeLevel = fs.readUTF();
 						trace("use-level: " + activeLevel);
 						numId = fs.readUnsignedShort();
 						mStrings.length = 0;
-						for (var i:int = 0; i < numId; i++) {
+						for (i = 0; i < numId; i++) {
 							mStrings[i] = fs.readUTF();
 						}
 						trace("String Pool length: " + numId);
@@ -253,10 +260,20 @@ package
 						ctx.parameters = {"id": id};
 						ldr.contentLoaderInfo.addEventListener(flash.events.Event.COMPLETE, onLoaderComplete);
 						ldr.loadBytes(inBuffer, ctx);
+						swfLoaders[activeLevel] = ldr;
 						loadersCounter++;
 						inBuffer.clear();
 						break;
-					
+					case cmdDefineSound:
+						id = mStrings[fs.readShort()];
+						numBytes = fs.readUnsignedInt();
+						var sound:Sound = new Sound();
+						fs.readBytes(inBuffer, 0, numBytes);
+						sound.loadCompressedDataFromByteArray(inBuffer, numBytes);
+						sounds[id] = sound;
+						log("DEFINE SOUND: " + id);
+						inBuffer.clear();
+						break;
 					case cmdTimelineData:
 						numBytes = fs.readUnsignedInt();
 						trace("TimelineData bytes " +  numBytes);
@@ -499,10 +516,9 @@ package
 					object = null;
 				}
 			}
+			var name:String = namesByIDs[id];
 			if (!object) {
-				var name:String = namesByIDs[id];
 				var spec:TimelineMemoryBlock = spriteDefinitions[id];
-				
 				if (spec) {
 					var numFrames:uint = Memory.readUnsignedShort(spec.head);
 					//log("Creating new TimelineObject", id, spec.length, numFrames);
@@ -525,7 +541,7 @@ package
 							object = new Image(tmp.texture) as DisplayObject;
 							object.name = name?name:String(id);
 						}
-						object.touchable = false;
+						object.touchable = touchable;
 						Quad(object).color = 0xFFFFFF;
 					}
 				}
@@ -544,6 +560,10 @@ package
 			}
 			return object as DisplayObject;
 		}
+		public static function getSound(name:String):Sound {
+			log("getSound " + name);
+			return sounds[name] as Sound;
+		}
 		public static function getTimelineShape(name:String):DisplayObject {
 			log("getTimelineShape " + name);
 			return getTimelineShapeByID(IDsByNames[name]);
@@ -557,7 +577,7 @@ package
 			if (pool == null) {
 				objects[id] = pool = new Array();
 			}
-			trace("objects: "+objects.length+" pool " + pool.length);
+			//trace("objects: "+objects.length+" pool " + pool.length);
 			for (var n:int = 0; n < pool.length; n++) {
 				object = DisplayObject(pool[n]);
 				if (object.parent == null) {
