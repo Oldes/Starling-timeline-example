@@ -55,7 +55,7 @@ package
 		private static var atlases:Array = new Array();
 		private static var movies:Array = new Array();
 		private static var flashMovies:Array = new Array();
-		private static var objects:Array = new Array();
+		private static var objects:Vector.<Vector.<DisplayObject>> = new Vector.<Vector.<DisplayObject>>(1000, true); //USE NUMBER WHICH IS LARGE ENOUGH FOR YOUR PURPOSE
 		private static var swfLoaders:Array = new Array();
 		private static var sounds:Array = new Array();
 
@@ -482,9 +482,9 @@ package
 			var id:int = IDsByNames[name];
 			log("OverrideTLO: " + name + " " + id);
 			if (!id) return false;
-			var pool:Array = objects[id];
+			var pool:Vector.<DisplayObject> = objects[id];
 			if (pool == null) {
-				objects[id] = pool = new Array();
+				objects[id] = pool = new Vector.<DisplayObject>();
 			} else {
 				//TODO: dispose objects in the pool if there are any!!!
 				pool.length = 1;
@@ -605,10 +605,10 @@ package
 			//log("getTimelineShape: " + id + " "+namesByIDs[id]);
 			
 			var object:DisplayObject;
-			var pool:Array = objects[id];
+			var pool:Vector.<DisplayObject> = objects[id];
 			
 			if (pool == null) {
-				objects[id] = pool = new Array();
+				objects[id] = pool = new Vector.<DisplayObject>();
 			}
 			//trace("objects: "+objects.length+" pool " + pool.length);
 			for (var n:int = 0; n < pool.length; n++) {
