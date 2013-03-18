@@ -258,7 +258,7 @@ package display
 						p += 5;
 						switch(flags & 7) { //first 3 bits
 							case 0: //placing image
-								obj = Assets.getTimelineObjectByID(id, false, touchable);
+								obj = Assets.getTimelineImageByID(id, false, touchable);
 								break;
 							case 1: //placing object
 								obj = Assets.getTimelineObjectByID(id, false, touchable);

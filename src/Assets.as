@@ -500,22 +500,25 @@ package
 			//log("getTimelineObject: " + id + " "+namesByIDs[id]);
 			
 			var object:DisplayObject;
-			var pool:Array = objects[id];
+			var pool:Vector.<DisplayObject> = objects[id];
 			if (pool == null) {
-				objects[id] = pool = new Array();
+				objects[id] = pool = new Vector.<DisplayObject>();
 			}
-			for (var n:int = 0; n < pool.length; n++) {
-				object = DisplayObject(pool[n]);
+			var found:Boolean;
+			var n:int = pool.length;
+			while (n-- > 0){
+				object = pool[n];
 				if (object.parent == null) {
 					//log("Reusing TimelineObject " + object.name);
 					if (object is TimelineObject) {
 						TimelineObject(object).init(); //resets object state
 					}
+					found = true;
 					break;
-				} else {
-					object = null;
 				}
 			}
+			if (!found) object = null;
+			
 			var name:String = namesByIDs[id];
 			if (!object) {
 				var spec:TimelineMemoryBlock = spriteDefinitions[id];
@@ -531,21 +534,6 @@ package
 					TimelineObject(object).removeTint();
 					object.name = name?name:String(id);
 				} else {
-					var tmp:Image = images[name];
-					if (tmp) {
-						if (tmp.parent == null) {
-							//log("reusing image");
-							object = tmp;
-						} else {
-							//log("cloning image: "+name);
-							object = new Image(tmp.texture) as DisplayObject;
-							object.name = name?name:String(id);
-						}
-						object.touchable = touchable;
-						Quad(object).color = 0xFFFFFF;
-					}
-				}
-				if (!object) {
 					//throw new Error("Unknown TimelineObject: " + id);
 					object = new Quad(10, 10, 0xff0000);
 				}
@@ -557,6 +545,51 @@ package
 				spr.name = name?name:String(id);
 				spr.addChild(object);
 				return spr;
+			}
+			return object as DisplayObject;
+		}
+		public static function getTimelineImageByID(id:uint, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineImage: " + id + " "+namesByIDs[id]);
+			
+			var object:DisplayObject;
+			var pool:Vector.<DisplayObject> = objects[id];
+			if (pool == null) {
+				objects[id] = pool = new Vector.<DisplayObject>();
+			}
+			var found:Boolean;
+			var n:int = pool.length;
+			while (n-- > 0){
+				object = pool[n];
+				if (object.parent == null) {
+					//log("Reusing TimelineObject " + object.name);
+					if (object is TimelineObject) {
+						TimelineObject(object).init(); //resets object state
+					}
+					found = true;
+					break;
+				}
+			}
+			if (!found) object = null;
+			
+			if (!object) {
+				var name:String = namesByIDs[id];
+				var tmp:Image = images[name];
+				if (tmp) {
+					if (tmp.parent == null) {
+						//log("reusing image");
+						object = tmp;
+					} else {
+						//log("cloning image: "+name);
+						object = new Image(tmp.texture) as DisplayObject;
+						object.name = name;
+					}
+					object.touchable = touchable;
+					Quad(object).color = 0xFFFFFF;
+				} else {
+					//throw new Error("Unknown TimelineObject: " + id);
+					object = new Quad(10, 10, 0xff0000);
+				}
+				pool.push(object);
 			}
 			return object as DisplayObject;
 		}
