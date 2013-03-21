@@ -16,7 +16,7 @@
 	var resultLayer = null;
 	var resultLayerNum;
 	
-	var sc = 4;
+	var sc = 1;
 	
 	if(selectedFrames.length>0){
 		
@@ -148,6 +148,14 @@
 			document.selectAll();
 			if(document.selection.length>0){
 
+				/*document.convertToSymbol('movie clip', '', 'top left');
+				document.selectAll();
+				document.addFilter('blurFilter');
+				document.setFilterProperty('blurX',0,sc*5);
+				document.setFilterProperty('blurY',0,sc*5);
+				document.setFilterProperty('quality',0,2);
+				document.setInstanceBrightness(-100);
+				*/
 				//document.convertToSymbol('movie clip', '', 'top left');
 				//document.selectAll();
 				/*document.addFilter('blurFilter');
@@ -168,9 +176,10 @@
 				document.setFilterProperty('strength',1,130);
 				document.setFilterProperty('quality',1,2);
 				
+				
+				*/
 				document.selectAll();
 				document.convertToSymbol('movie clip', '', 'top left');
-				*/
 				//document.selectAll();
 				document.convertSelectionToBitmap();
 				//document.library.deleteItem();

@@ -12,6 +12,11 @@
 		if(item.itemType != "folder") {
 			trace(item+" "+item.itemType+" "+item.linkageClassName+" "+item.name);
 			
+			if(item.linkageExportForAS){
+				item.linkageClassName=""; 
+				item.linkageExportForAS = false;
+			}
+			
 			var linkName = item.name.replace(/[\/ ]/g,'_');
 			trace(linkName);
 			item.linkageExportForAS = true;
@@ -19,13 +24,8 @@
 			
 		}
 	}
-	
-	var context = Context.create();
-	var collection = $$(':bitmap');
-	
-	collection.list();
+
+	var collection = $$(':selected'); //$$(':bitmap');
 	collection.each(linkItem);
-	
-	context.goto();
 
 })()
