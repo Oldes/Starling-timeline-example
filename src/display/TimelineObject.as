@@ -24,6 +24,7 @@ package display
 		public const cmdMoveDepth:int     = 2;
 		public const cmdShowFrame:int     = 128;
 		public const cmdPlaceObject:int   = 1;
+		public const cmdPlaceNamed:int    = 10;
 		public const cmdReplaceObject:int = 5;
 		public const cmdRemoveDepth:int   = 3;
 		public const cmdLabel:int         = 4;
@@ -74,8 +75,7 @@ package display
 			if (this is TimelineMovie) TimelineMovie(this).stop();
 			var n:int = numChildren;
 			var child:DisplayObject;
-			while (n > 0) {
-				n--;
+			while (n-- > 0) {
 				child = getChildAt(n);
 				if (child is TimelineObject) {
 					TimelineObject(child).release()

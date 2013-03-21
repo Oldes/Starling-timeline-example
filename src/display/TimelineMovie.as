@@ -212,11 +212,15 @@ package display
 								matrix.a = Memory.readFloat(p);
 								matrix.d = Memory.readFloat(p + 4);
 								p += 8;
+							} else {
+								matrix.a = matrix.d = 1;
 							}
 							if(32 == (flags & 32)){//skew
 								matrix.b = Memory.readFloat(p);
 								matrix.c = Memory.readFloat(p + 4);
 								p += 8;
+							} else {
+								matrix.b = matrix.c = 0;
 							}
 
 							if (64 == (flags & 64)) {//alpha
@@ -249,7 +253,11 @@ package display
 						mCurrentFrame++;
 						notBreak = false;
 						break;
-						
+					case cmdPlaceNamed:
+						MemoryPool.buffer.position = p;
+						var uniqueObjName:String = MemoryPool.buffer.readUTF();
+						log("%%%%%%% " + uniqueObjName);
+						p = MemoryPool.buffer.position;
 					case cmdPlaceObject:
 					case cmdReplaceObject:
 						id    = Memory.readUnsignedShort(p);
@@ -258,10 +266,10 @@ package display
 						p += 5;
 						switch(flags & 7) { //first 3 bits
 							case 0: //placing image
-								obj = Assets.getTimelineImageByID(id, false, touchable);
+								obj = Assets.getTimelineImageByID(id, touchable);
 								break;
 							case 1: //placing object
-								obj = Assets.getTimelineObjectByID(id, false, touchable);
+								obj = Assets.getTimelineObjectByID(id, touchable);
 								break;
 							case 2: //placing shape
 								obj = Assets.getTimelineShapeByID(id);
@@ -316,16 +324,23 @@ package display
 								}
 							}
 							
-							if (opcode == cmdPlaceObject) {
-								addChildAt(obj, depth);
-							} else {
-								removeChildAt(depth);
-								addChildAt(obj, depth);
-								//replaceChildAt(obj, depth); //<-this is not in official Starling framework
+							switch (opcode) {
+								case cmdPlaceObject:
+									addChildAt(obj, depth);
+									break;
+								case cmdPlaceNamed:
+									addChildAt(obj, depth);
+									break;
+								default:
+									removeChildAt(depth);
+									addChildAt(obj, depth);
+									//replaceChildAt(obj, depth); //<-this is not in official Starling framework
 							}
 							if (dispatching && obj is DisplayObjectContainer) {
 								DisplayObjectContainer(obj).setDispatching(true);
 							}
+						} else {
+							throw new Error("UNKNOWN OBJ");
 						}
 						break;
 					case cmdRemoveDepth:
@@ -364,7 +379,7 @@ package display
 						break;
 						
 					default:
-						log("UNKNOWN opcode: " + opcode);
+						log("[movie] UNKNOWN opcode: " + opcode);
 				}
 			} while (notBreak);
 			mPointer = p;

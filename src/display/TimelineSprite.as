@@ -48,10 +48,10 @@ package display
 						//trace("Sprite FLAGS: " + flags + " " + (flags & 7));
 						switch(flags & 7) { //first 3 bits
 							case 0: //placing image
-								obj = Assets.getTimelineImageByID(id, false, touchable);
+								obj = Assets.getTimelineImageByID(id, touchable);
 								break;
 							case 1: //placing object
-								obj = Assets.getTimelineObjectByID(id, false, touchable);
+								obj = Assets.getTimelineObjectByID(id, touchable);
 								break;
 							case 2: //placing shape
 								obj = Assets.getTimelineShapeByID(id);

@@ -61,7 +61,7 @@ package scenes
 				
 				addChild(tmp);
 				
-				tmp = Assets.getStarlingMovie("Sekac") as DisplayObject;
+				tmp = Assets.getStarlingMovie("Mlok/Mlok/Sekac") as DisplayObject;
 				tmp.x = 100 + 1420 * Math.random();
 				tmp.y = 100 + 780 * Math.random();
 				TextureAnim(tmp).fps = 30 + 0.5 * i;

@@ -50,14 +50,17 @@ package
 	
 	public final class Assets 
 	{
-		private static var images:Array = new Array();
+		private static var images:Vector.<Image> = new Vector.<Image>(5000, true);
 		private static var atlasTextures:Array = new Array();
 		private static var atlases:Array = new Array();
 		private static var movies:Array = new Array();
 		private static var flashMovies:Array = new Array();
-		private static var objects:Vector.<Vector.<DisplayObject>> = new Vector.<Vector.<DisplayObject>>(1000, true); //USE NUMBER WHICH IS LARGE ENOUGH FOR YOUR PURPOSE
+		private static var mImageNameIDs:Array = new Array();
+		private static var mPoolTimelineObjects:Vector.<Vector.<DisplayObject>> = new Vector.<Vector.<DisplayObject>>(5000, true); //WARNING: now there can be max 5000 timeline items!
+		private static var mPoolImages:Vector.<Vector.<Image>> = new Vector.<Vector.<Image>>(5000, true); //WARNING: now there can be max 5000 timeline items!
 		private static var swfLoaders:Array = new Array();
 		private static var sounds:Array = new Array();
+		private static var mNamedObjects:Vector.<DisplayObject> = new Vector.<DisplayObject>();
 
 		private static var namesByIDs:Array = new Array();
 		private static var IDsByNames:Array = new Array();
@@ -65,7 +68,7 @@ package
 		private var mStrings:Vector.<String> = new Vector.<String>;
 		
 		private static var mTextureDefinitions:Array = new Array();
-		private static var spriteDefinitions:Array = new Array();
+		private static var spriteDefinitions:Vector.<TimelineMemoryBlock> = new Vector.<TimelineMemoryBlock>(1000, true); //USE NUMBER WHICH IS LARGE ENOUGH FOR YOUR PURPOSE
 		private static var shapeDefinitions:Array = new Array();
 		private static var shapeMaterials:Vector.<StandardMaterial> = new Vector.<StandardMaterial>;
 		private static const loader:Loader = new Loader();
@@ -112,6 +115,8 @@ package
 		private static const cmdDefineSound:int              = 15;
 		
 		private static const cmdWalkData:int                 = 20;
+		
+		private static const cmdImageNames:int               = 30;
 		
 		private static const mMemory:ByteArray = new ByteArray();
 		private static const DOMAIN_MEMORY_LENGTH:int = 50000;
@@ -248,6 +253,15 @@ package
 							inBuffer.clear();
 						}
 						break;
+					case cmdImageNames:
+						i = fs.readShort();
+						while (i-- > 0) {
+							id = fs.readUTF();
+							numId = fs.readShort();
+							log("NAMED IMAGE: " + numId + " " + id);
+							mImageNameIDs[id] = numId;
+						}
+						break;
 					case cmdLoadSWF:
 						id = fs.readUTF();
 						numBytes = fs.readUnsignedInt();
@@ -276,7 +290,7 @@ package
 						break;
 					case cmdTimelineData:
 						numBytes = fs.readUnsignedInt();
-						trace("TimelineData bytes " +  numBytes);
+						//trace("TimelineData bytes " +  numBytes);
 						//fs.readBytes(inBuffer, 0, numBytes);
 						dataBlock = MemoryPool.allocate( numBytes );
 						MemoryPool.buffer.position = dataBlock.position;
@@ -330,27 +344,30 @@ package
 			
 			var command:int;
 			var id:String;
+			var numId:int;
 			var region:Rectangle;
 			var frame:Rectangle;
 			
 			var p:int = data.position; //pointer
 			while ((command = Memory.readUnsignedByte(p++)) > 0) {
+				//trace(command);
 				switch(command){
 					case cmdDefineImage:
-						id = mStrings[Memory.readUnsignedShort(p)];
+						numId         = Memory.readUnsignedShort(p);
 						region = new Rectangle();
 						region.x      = Memory.readUnsignedShort(p+2);
 						region.y      = Memory.readUnsignedShort(p+4);
 						region.width  = Memory.readUnsignedShort(p+6);
 						region.height = Memory.readUnsignedShort(p+8);
 						p += 10;
-						images[activeLevel + "/" + activeTextureName + "/" + id] = new Image(Texture.fromTexture(activeAtlasTexture, region));
+						trace("defineImage: "+numId+" "+region)
+						images[numId] = new Image(Texture.fromTexture(activeAtlasTexture, region));
 						
 						break;
 					case cmdStartMovie:
-						trace("start-movie2");
 						activeMovieTextures = new Vector.<Texture>;
 						activeMovieName = mStrings[Memory.readUnsignedShort(p)];
+						trace("start-movie: " + activeMovieName);
 						p += 2;
 						break;
 					case cmdEndMovie:
@@ -401,6 +418,7 @@ package
 			// Free the space used by the data as we do not need it any longer
 			MemoryPool.free( data );
 		}
+
 		private function onLoaderComplete(e:flash.events.Event):void {
 			e.target.removeEventListener(flash.events.Event.COMPLETE, onLoaderComplete);
 			var content:Object = e.target.content;
@@ -452,7 +470,13 @@ package
 		
 		public static function getImage(name:String):Image
         {
-			var img:Image = images[name] as Image;
+			var img:Image = images[mImageNameIDs[name]];
+			img.touchable = false;
+            return img;
+        }
+		public static function getImageById(id:int):Image
+        {
+			var img:Image = images[id];
 			img.touchable = false;
             return img;
         }
@@ -482,27 +506,27 @@ package
 			var id:int = IDsByNames[name];
 			log("OverrideTLO: " + name + " " + id);
 			if (!id) return false;
-			var pool:Vector.<DisplayObject> = objects[id];
+			var pool:Vector.<DisplayObject> = mPoolTimelineObjects[id];
 			if (pool == null) {
-				objects[id] = pool = new Vector.<DisplayObject>();
+				mPoolTimelineObjects[id] = pool = new Vector.<DisplayObject>();
 			} else {
-				//TODO: dispose objects in the pool if there are any!!!
+				//TODO: dispose mPoolTimelineObjects in the pool if there are any!!!
 				pool.length = 1;
 			}
 			pool.push(object);
 			return true;
 		}
-		public static function getTimelineObject(name:String, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
-			//log("getTimelineObject " + name);
-			return getTimelineObjectByID(IDsByNames[name], asSprite, touchable);
+		public static function getTimelineObject(name:String, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineObject " + name+" "+IDsByNames[name]);
+			return getTimelineObjectByID(IDsByNames[name], touchable);
 		}
-		public static function getTimelineObjectByID(id:uint, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
-			//log("getTimelineObject: " + id + " "+namesByIDs[id]);
+		public static function getTimelineObjectByID(id:uint, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineObject: " + id );
 			
 			var object:DisplayObject;
-			var pool:Vector.<DisplayObject> = objects[id];
+			var pool:Vector.<DisplayObject> = mPoolTimelineObjects[id];
 			if (pool == null) {
-				objects[id] = pool = new Vector.<DisplayObject>();
+				mPoolTimelineObjects[id] = pool = new Vector.<DisplayObject>();
 			}
 			var found:Boolean;
 			var n:int = pool.length;
@@ -517,10 +541,10 @@ package
 					break;
 				}
 			}
-			if (!found) object = null;
-			
-			var name:String = namesByIDs[id];
-			if (!object) {
+			if (!found) {
+
+				var name:String = namesByIDs[id];
+
 				var spec:TimelineMemoryBlock = spriteDefinitions[id];
 				if (spec) {
 					var numFrames:uint = Memory.readUnsignedShort(spec.head);
@@ -540,59 +564,63 @@ package
 				pool.push(object);
 			}
 			object.touchable = touchable;
-			if (asSprite) {
-				var spr:Sprite = new Sprite();
-				spr.name = name?name:String(id);
-				spr.addChild(object);
-				return spr;
-			}
-			return object as DisplayObject;
+			return object;
 		}
-		public static function getTimelineImageByID(id:uint, asSprite:Boolean=false, touchable:Boolean=false):DisplayObject {
-			//log("getTimelineImage: " + id + " "+namesByIDs[id]);
+		public static function getTimelineObjectInSprite(name:String, touchable:Boolean = false):Sprite {
+			var object:DisplayObject = getTimelineObjectByID(IDsByNames[name], touchable);
+			var spr:Sprite = new Sprite();
+			spr.name = object.name;
+			spr.addChild(object);
+			return spr;
+		}
+		public static function getTimelineImageByID(id:uint, touchable:Boolean=false):DisplayObject {
+			//log("getTimelineImage: " + id);
 			
-			var object:DisplayObject;
-			var pool:Vector.<DisplayObject> = objects[id];
+			var image:Image;
+			var pool:Vector.<Image> = mPoolImages[id];
 			if (pool == null) {
-				objects[id] = pool = new Vector.<DisplayObject>();
+				mPoolImages[id] = pool = new Vector.<Image>();
+
+
 			}
 			var found:Boolean;
 			var n:int = pool.length;
 			while (n-- > 0){
-				object = pool[n];
-				if (object.parent == null) {
-					//log("Reusing TimelineObject " + object.name);
-					if (object is TimelineObject) {
-						TimelineObject(object).init(); //resets object state
-					}
+				image = pool[n];
+				if (image.parent == null) {
+					//log("Reusing Image " + id);
+
+
+
 					found = true;
 					break;
 				}
 			}
-			if (!found) object = null;
-			
-			if (!object) {
-				var name:String = namesByIDs[id];
-				var tmp:Image = images[name];
-				if (tmp) {
-					if (tmp.parent == null) {
+			if (!found) {
+				//var name:String = namesByIDs[id];
+				image = images[id];
+				if (image) {
+					if (image.parent == null) {
+
+
 						//log("reusing image");
-						object = tmp;
+						if (image.tinted) image.color = 0xFFFFFF;
 					} else {
 						//log("cloning image: "+name);
-						object = new Image(tmp.texture) as DisplayObject;
-						object.name = name;
+						image = new Image(image.texture);
 					}
-					object.touchable = touchable;
-					Quad(object).color = 0xFFFFFF;
+					image.name = String(id);
+					image.touchable = touchable;
+					
 				} else {
-					//throw new Error("Unknown TimelineObject: " + id);
-					object = new Quad(10, 10, 0xff0000);
+					throw new Error("Unknown TimelineImage: " + id);
+					image = new Quad(10, 10, 0x00ff00) as Image;
 				}
-				pool.push(object);
+				pool.push(image);
 			}
-			return object as DisplayObject;
+			return image as DisplayObject;
 		}
+
 		public static function getSound(name:String):Sound {
 			log("getSound " + name);
 			return sounds[name] as Sound;
@@ -605,12 +633,12 @@ package
 			//log("getTimelineShape: " + id + " "+namesByIDs[id]);
 			
 			var object:DisplayObject;
-			var pool:Vector.<DisplayObject> = objects[id];
+			var pool:Vector.<DisplayObject> = mPoolTimelineObjects[id];
 			
 			if (pool == null) {
-				objects[id] = pool = new Vector.<DisplayObject>();
+				mPoolTimelineObjects[id] = pool = new Vector.<DisplayObject>();
 			}
-			//trace("objects: "+objects.length+" pool " + pool.length);
+			//trace("mPoolTimelineObjects: "+mPoolTimelineObjects.length+" pool " + pool.length);
 			for (var n:int = 0; n < pool.length; n++) {
 				object = DisplayObject(pool[n]);
 				if (object.parent == null) {
@@ -653,7 +681,9 @@ package
 			return new Sprite;
 		}
 		
-		
+		public static function unloadLevel(levelName:String):void {
+			//TODO: unloading
+		}
 		
 		
 		private function stopAllInSWF(swf:DisplayObjectContainer):void {
