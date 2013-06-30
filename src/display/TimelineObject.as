@@ -1,7 +1,6 @@
 package display
 {
-	import flash.system.System;
-	import flash.utils.ByteArray;
+	import core.Assets;
 	import starling.display.DisplayObject;
 	import starling.display.DisplayObjectContainer;
 	import starling.display.Quad;
@@ -10,16 +9,15 @@ package display
     
     public class TimelineObject extends DisplayObjectContainer
     {
-		private var mControlTags:ByteArray;
 		public var tintR:Number=1;
 		public var tintG:Number=1;
 		public var tintB:Number=1;
 		public var tintRealR:Number=1;
 		public var tintRealG:Number=1;
 		public var tintRealB:Number=1;
-		public var cxFormMatrix:Vector.<Number>;
-		public var cxFilter:ColorMatrixFilter;
 		public var hasTint:Boolean = false;
+		
+		public var id:String;
 		
 		public const cmdMoveDepth:int     = 2;
 		public const cmdShowFrame:int     = 128;
@@ -39,6 +37,7 @@ package display
 		}
 		public function init():void { };
 		
+		
 		override public function replaceChildAt(child:DisplayObject, index:int, dispose:Boolean = false):DisplayObject {
 			
 			if(index >= 0 && index < numChildren){
@@ -46,7 +45,7 @@ package display
 				if (obj is TimelineObject) {
 					TimelineObject(obj).release();
 				} else if(obj is TimelineShape){
-					trace(3)
+					//trace(3)
 					//TimelineShape(obj).graphics.disposeBuffers();
 				}
 			}
@@ -57,43 +56,59 @@ package display
 			if (obj is TimelineObject) {
 				TimelineObject(obj).release();
 			} else if (obj is TimelineShape) {
-			trace(2)	
+				//trace(2)	
 				//TimelineShape(obj).graphics.disposeBuffers();
 			}
 			return super.removeChildAt(index, dispose);
 		}
+		override public function dispose():void {
+			if (filter != null) {
+				if (filter is ColorMatrixFilter) Assets.addColorMatrixFilter(filter as ColorMatrixFilter);
+				filter = null;
+			}
+			if (id) {
+				Assets.removeNamedObject(this);
+				id = null;
+			}
+			name = null;
+			removeChildren();
+			removeEventListeners();
+		}
+
+		/* Releases object and it's content back to pools (not dispose) */
 		public function release():void
         {
-			/*if (cxFormMatrix) {
-				cxFormMatrix.length = 0;
-				cxFormMatrix = null;
+			if (id) Assets.removeNamedObject(this);
+
+			if (hasTint) {
+				tintR = tintG = tintB = 1;
+				tintRealR = tintRealG = tintRealB = 1;
+				hasTint = false;
+			}
+			if (filter != null) {
+				if (filter is ColorMatrixFilter) Assets.addColorMatrixFilter(filter as ColorMatrixFilter);
 				filter = null;
-			}*/
-			tintR = tintG = tintB = 1;
-			tintRealR = tintRealG = tintRealB = 1;
-			hasTint = false;
-			if (this is TimelineMovie) TimelineMovie(this).stop();
+			}
 			var n:int = numChildren;
 			var child:DisplayObject;
 			while (n-- > 0) {
 				child = getChildAt(n);
-				if (child is TimelineObject) {
+				if (child is Quad) {
+					Quad(child).color = 0xFFFFFF;
+					removeChildAt(n);
+				} else if (child is TimelineObject) {
 					TimelineObject(child).release()
 					removeChildAt(n, true);
 				} else if (child is TimelineShape) {
-					trace(1);
+					//todo: release TimelineShape
+					trace("---------- release shape ----- v.1");
 					//TimelineShape(child).graphics.disposeBuffers();
 					removeChildAt(n);
-				} else if (child is Quad) {
-					Quad(child).color = 0xFFFFFF;
-					removeChildAt(n);
 				} else {
-					
 					removeChildAt(n);
 				}
 				
 			}
-			System.pauseForGCIfCollectionImminent();
 			//log("release finished");
         }
 		public function removeTint():void {
@@ -126,25 +141,6 @@ package display
 			}
 		}
 		public function setColorTransform(r:Number, g:Number, b:Number):void {
-			/*
-			if (cxFormMatrix == null) {
-				cxFormMatrix = Vector.<Number>([
-					r, 0, 0, 0, 0, // red
-					0, g, 0, 0, 0, // green
-					0, 0, b, 0, 0, // blue
-					0, 0, 0, 1, 0]); // alpha
-				filter = new ColorMatrixFilter();
-			} else {
-				cxFormMatrix[0]  = r;
-				cxFormMatrix[6]  = g;
-				cxFormMatrix[12] = b;
-			}
-			ColorMatrixFilter(filter).matrix = Vector.<Number>([
-					r, 0, 0, 0, 0, // red
-					0, g, 0, 0, 0, // green
-					0, 0, b, 0, 0, // blue
-					0, 0, 0, 1, 0]); // alpha;
-			*/
 			tintR = tintRealR = r;
 			tintG = tintRealG = g;
 			tintB = tintRealB = b;

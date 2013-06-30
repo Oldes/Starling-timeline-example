@@ -1,6 +1,7 @@
 package 
 {
-	
+	import core.Assets;
+	import core.Global;
 	import scenes.IntroMenu;
 
     import flash.ui.Keyboard;
@@ -38,7 +39,10 @@ package
         }
 		
 		public static function get instance():Game{
-			if(!_instance) _instance = new Game();
+			if (!_instance) {
+				_instance = new Game();
+				Global.instance.gameRoot = _instance;
+			}
 			return _instance;
 		}
 		
@@ -62,7 +66,7 @@ package
 			switch(currentLevel) {
 				case "Mlok": scene = new Mlok(); break;
 			}
-			currentScene = scene as Scene;
+			Global.instance.currentScene = currentScene = scene as Scene;
 			addChildAt(scene, 0);
 		}
         private function onRemovedFromStage(event:Event):void

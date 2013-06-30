@@ -63,13 +63,17 @@ package display
 		private var mLabelNumbers:Object = new Object();
 		
 		public var onFrameLabel:Function;
+		public var onFrameLabelLeave:Function;
+		
+		private var mId:String;
 		
         /** Creates a movie clip from the provided textures and with the specified default framerate.
          *  The movie will have the size of the first frame. */  
-        public function TextureAnim(textures:Vector.<Texture>, fps:Number=12)
+        public function TextureAnim(id:String, textures:Vector.<Texture>, fps:Number=12)
         {
             if (textures.length > 0)
             {
+				mId = id;
                 super(textures[0]);
                 init(textures, fps);
             }
@@ -93,7 +97,17 @@ package display
             mCurrentFrame = 0;
             mTotalTime = mFrameDuration * numFrames;
             mTextures = textures.concat();
-            mSounds = new Vector.<Sound>(numFrames);
+            //mSounds = new Vector.<Sound>(numFrames);
+            /*mDurations = new Vector.<Number>(numFrames);
+            mStartTimes = new Vector.<Number>(numFrames);
+            
+            for (var i:int=0; i<numFrames; ++i)
+            {
+                mDurations[i] = mFrameDuration;
+                mStartTimes[i] = i * mFrameDuration;
+            }
+			*/
+		
         }
         
         // frame manipulation
@@ -146,6 +160,10 @@ package display
 		/** Returns all subTextures */	
 		public function get textures():Vector.<Texture> {
 			return mTextures;
+		}
+		
+		public function get id():String {
+			return mId;
 		}
 		
         /** Returns the texture of a certain frame. */		
@@ -294,6 +312,7 @@ package display
 			return false;
 		}
 		
+	
         // IAnimatable
         
         /** @inheritDoc */
@@ -353,7 +372,7 @@ package display
 					}
                 }
             }
-            
+            //if(mCurrentFrame != previousFrame) trace("FRAMES: " + (mCurrentFrame - previousFrame));
             updateFrame();
         }
         

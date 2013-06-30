@@ -13,9 +13,9 @@ REBOL [
 	}
 ]
 
-;do %/c/dev/git/rs/rs.r
-;rs/run/fresh/version 'pack-assets 'fastmem
-do %scripts/pack-assets.r
+do %/c/dev/GIT/RS/rs.r
+rs/run/version 'pack-assets 'fastmem
+;do %scripts/pack-assets.r
 
 ;http://code.google.com/p/libgdx/wiki/TexturePacker
 with ctx-pack-assets [

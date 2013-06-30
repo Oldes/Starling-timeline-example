@@ -2,3 +2,4 @@ dist/*
 obj/*.old
 *.dxt
 *.etc
+RECOVER_*.fla

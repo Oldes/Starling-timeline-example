@@ -20,6 +20,9 @@ Images [
     "Mlok/Mlok/SopranNoha4C"
 ]
 
+
+Sounds []
+
 Sprite 0 [
 	TotalFrames 1
 	Place image 14 1[#[none] #[none] [0 0]]

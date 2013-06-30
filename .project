@@ -26,12 +26,12 @@
 		<link>
 			<name>[source path] extension-src</name>
 			<type>2</type>
-			<location>/Users/Oldes/Documents/Starling/Starling-Extension-Graphics/extension/src</location>
+			<location>C:/dev/GIT/Starling-Extension-Graphics/extension/src</location>
 		</link>
 		<link>
 			<name>[source path] starling-src</name>
 			<type>2</type>
-			<location>/Users/Oldes/Documents/Starling/Starling-Framework/starling/src</location>
+			<location>C:/dev/Starling/Starling-Framework/starling/src</location>
 		</link>
 	</linkedResources>
 </projectDescription>

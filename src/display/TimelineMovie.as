@@ -1,19 +1,25 @@
 package display
 {
+	import core.Assets;
+	import flash.media.Sound;
+	import flash.media.SoundTransform;
+	import memory.Memory;
 	import starling.display.DisplayObjectContainer;
 	import flash.errors.IllegalOperationError;
 	import flash.geom.Matrix;
-	import flash.utils.ByteArray;
 	import starling.animation.DelayedCall;
 	import starling.display.DisplayObject;
 	import starling.core.Starling;
-	import starling.display.Quad;
+	import starling.filters.ColorMatrixFilter;
 
 	import starling.animation.IAnimatable;
 	import starling.events.Event;
-
-	import apparat.memory.Memory;
-	import apparat.memory.MemoryPool;
+	
+	import avm2.intrinsics.memory.*;
+	import flash.utils.getTimer;
+	
+//	import apparat.memory.Memory;
+//	import apparat.memory.MemoryPool;
     
     /** Dispatched whenever the movie has displayed its last frame. */
     [Event(name="complete", type="starling.events.Event")]
@@ -39,6 +45,8 @@ package display
 		private var mPointerTail:int;
 		private var mPointer:int;
 		
+		private var mReuseChildren:Boolean;
+		
 		public var onFrameLabel:Function;
         
         /** Creates a TimelineMovie object **/  
@@ -48,7 +56,7 @@ package display
 			mPointerTail = memoryBlock.tail;
 
 			mPointer = mPointerHead;
-			mTotalFrames = Memory.readUnsignedShort(mPointer);
+			mTotalFrames = li16(mPointer);
 			mPointer += 2;
 			
             if (fps <= 0) throw new ArgumentError("Invalid fps: " + fps);
@@ -57,21 +65,35 @@ package display
         }
         
 		override public function init():void {
+			//log("INIT TimelineMovie " + this, this.name, mTotalFrames, mPlaying);
 			removeChildren();
 			mPointer = mPointerHead + 2;
 			mCurrentTime = 0.0;
 			mCurrentFrame = 1;
 			mFrameDuration = 1.0 / fps;
+			mTotalTime = mTotalFrames * mFrameDuration;
+			mReuseChildren = false;
 			play();
 			updateFrame();
 		}
 		
+		public function unload():void {
+			stop();
+			super.dispose();
+		}
 		override public function dispose():void {
 			//log("Dispose TimelineMovie " + this, this.name);
 			release();
+			//stop();
+			//super.dispose();
 		}
 		
+		
 		override public function release():void {
+			if (dcResume) {
+				Starling.juggler.remove(dcResume);
+				dcResume = null;
+			}
 			stop();
 			super.release();
 		}
@@ -81,12 +103,8 @@ package display
 		
 		public function gotoAndPlay(frame:Object):void
         {
-			var frameNum:uint = uint(frame) //getFrameNumber(frame);
-			if (frameNum == 0) return;
-			mCurrentFrame = frameNum;
-			mCurrentTime = mCurrentFrame * mFrameDuration;
-			mPointer = mPointerHead + 2;
-			updateFrame();
+			seekToFrame(frame);
+			
 			if(!mPlaying){
 				mPlaying = true;
 				Starling.juggler.add(this);
@@ -96,10 +114,9 @@ package display
         {
 			var frameNum:uint = uint(frame) //getFrameNumber(frame);
 			if (frameNum == 0) return;
-			mCurrentFrame = frame;
-			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
-			mPointer = mPointerHead + 2;
-			updateFrame();
+			
+			seekToFrame(frameNum);
+			
 			if(mPlaying){
 				mPlaying = false;
 				Starling.juggler.remove(this);
@@ -122,7 +139,20 @@ package display
 				Starling.juggler.add(this);
 			}
         }
-        
+        public function playAll():void
+        {
+            mPlaying = true;
+			Starling.juggler.add(this);
+			var n:int = numChildren;
+			var child:DisplayObject;
+			while (n > 0) {
+				n--;
+				child = getChildAt(n);
+				if (child is TimelineMovie) {
+					TimelineMovie(child).playAll();
+				}
+			}
+        }
         /** Pauses playback. */
         public function pause(delay:Number=0):void
         {
@@ -166,12 +196,223 @@ package display
 		
 		private function onExitFrame():void {
 			if (mCurrentLabel && onFrameLabel != null ) {
-				onFrameLabel(this, mCurrentLabel);
+				//null current label before actual event call as it may be changed there
+				var tmp:String = mCurrentLabel;
+				mCurrentLabel = null;
+				onFrameLabel(this, tmp);
 			}
-			mCurrentLabel = null;
+		}
+		/* seekToFrame is made by brute force, so it should be used carefully! */
+		private function seekToFrame(frame:Object):void {
+			removeChildren();
+			mPointer = mPointerHead + 2;
+			mCurrentTime = 0.0;
+			mCurrentFrame = 0;
+			
+			var opcode:uint;
+			var notBreak:Boolean = true;
+			var id:uint;
+			var depth:uint, flags:uint;
+			var obj:DisplayObject;
+
+			var multR:Number, multG:Number, multB:Number;
+			var matrix:Matrix
+			var clrFilter:ColorMatrixFilter
+			//trace("updateFrame "+name)
+			
+			var p:int = mPointer; //actuall memory pointer position
+
+			do {
+				opcode = li8(p);
+				//trace("MovOp[" + p + "]: " + opcode);
+				p++;
+				switch(opcode) {
+					case cmdMoveDepth:
+						depth = li16(p);
+						flags = li8(p + 2);
+						p += 3;
+
+						obj = getChildAt(depth);
+
+						if (obj) {
+							matrix = obj.transformationMatrix;
+							if (8 == (flags & 8)) {//xy
+								matrix.tx = lf32(p);
+								matrix.ty = lf32(p + 4);
+								p += 8;
+							}
+							if(16 == (flags & 16)){//scale
+								matrix.a = lf32(p);
+								matrix.d = lf32(p + 4);
+								p += 8;
+							} else {
+								matrix.a = matrix.d = 1;
+							}
+							if(32 == (flags & 32)){//skew
+								matrix.b = lf32(p);
+								matrix.c = lf32(p + 4);
+								p += 8;
+							} else {
+								matrix.b = matrix.c = 0;
+							}
+							if (64 == (flags & 64)) {//colorMatrix
+								clrFilter = obj.filter as ColorMatrixFilter;
+								if (clrFilter == null) {
+									clrFilter = Assets.getColorMatrixFilter();
+									obj.filter = clrFilter;
+								}
+								clrFilter.setShaderColorMatrix(
+									lf32(p),
+									lf32(p+4),
+									lf32(p+8),
+									lf32(p+12),
+									lf32(p+16),
+									lf32(p+20),
+									lf32(p+24),
+									lf32(p+28)
+								);
+								p += 32;
+								
+							} else if (128 == (flags & 128)) {
+								obj.alpha = li8(p) / 255;
+								p++;
+							}
+						}
+						break;
+						
+					case cmdShowFrame:
+						mCurrentFrame++;
+						notBreak = !(mCurrentFrame == frame || mCurrentLabel == frame);
+						//trace("showFrame " + mCurrentFrame, mCurrentLabel, frame, notBreak);
+						break;
+					
+					case cmdPlaceNamed:
+						var nameID:String = Memory.readUTF(p);
+						p = Memory.buffer.position;
+					case cmdPlaceObject:
+					case cmdReplaceObject:
+						id    = li16(p);
+						depth = li16(p+2);
+						flags = li8(p + 4);
+						p += 5;
+						switch(flags & 7) { //first 3 bits
+							case 0: //placing image
+								obj = Assets.getTimelineImageByID(id, touchable);
+								break;
+							case 1: //placing object
+								obj = Assets.getTimelineObjectByID(id, touchable);
+								break;
+							case 2: //placing shape
+								obj = Assets.getTimelineShapeByID(id);
+								break;
+						}
+						
+						if (obj) {
+							obj.numId = id;
+							if (8 == (flags & 8)) {//xy
+								tmpMatrix.tx = lf32(p);
+								tmpMatrix.ty = lf32(p + 4);
+								p += 8;
+							} else {
+								tmpMatrix.tx = 0;
+								tmpMatrix.ty = 0;
+							}
+							if(16 == (flags & 16)){//scale
+								tmpMatrix.a = lf32(p);
+								tmpMatrix.d = lf32(p + 4);
+								p += 8;
+							} else {
+								tmpMatrix.a = 
+								tmpMatrix.d = 1;
+							}
+							if(32 == (flags & 32)){//skew
+								tmpMatrix.b = lf32(p);
+								tmpMatrix.c = lf32(p + 4);
+								p += 8;
+							} else {
+								tmpMatrix.c = 
+								tmpMatrix.b = 0;
+							}
+							obj.transformationMatrix = tmpMatrix;
+
+							if (64 == (flags & 64)) {//colorMatrix
+								clrFilter = Assets.getColorMatrixFilter();
+								clrFilter.setShaderColorMatrix(
+									lf32(p),
+									lf32(p+4),
+									lf32(p+8),
+									lf32(p+12),
+									lf32(p+16),
+									lf32(p+20),
+									lf32(p+24),
+									lf32(p+28)
+								);
+								obj.filter = clrFilter;
+								p += 32;
+								
+							} else if (128 == (flags & 128)) {
+								obj.alpha = li8(p) / 255;
+								p++;
+							} else {
+								obj.alpha = 1;
+							}
+							switch (opcode) {
+								case cmdPlaceObject:
+									addChildAt(obj, depth);
+									break;
+								case cmdPlaceNamed:
+									Assets.addNamedObject(obj as TimelineObject, nameID);
+									addChildAt(obj, depth);
+									break;
+								default:
+									//TODO: form-timeline script is not producing replace command at this moment!
+									//removeChildAt(depth);
+									//addChildAt(obj, depth);
+									replaceChildAt(obj, depth); //<-this is not in official Starling framework
+							}
+							if (dispatching && obj is DisplayObjectContainer) {
+								DisplayObjectContainer(obj).setDispatching(true);
+							}
+						} else {
+							throw new Error("UNKNOWN OBJ");
+						}
+						break;
+					case cmdRemoveDepth:
+						depth = li16(p);
+						p += 2;
+						removeChildAt(depth);
+						break;
+					case cmdLabel:
+						mCurrentLabel = Memory.readUTF(p);
+						p = Memory.buffer.position;
+						//log("LABEL: " + mCurrentLabel);
+						break;
+					case cmdStartSound:
+						//if (mCurrentFrame == frameNum - 1) { //the mCurrentFrame value is updated by showFrame command, which comes later
+							id = li16(p);
+							var loops:int = li16(p + 2);
+							var snd:Sound = Assets.getSound(id);
+							var sndTrans:SoundTransform = new SoundTransform();
+							sndTrans.leftToLeft   = li16(p + 4) / 32768;
+							sndTrans.rightToRight = li16(p + 6) / 32768;
+							snd.play(0, loops, sndTrans);
+						//}
+						p += 8;
+						break;
+					case cmdEnd: //end
+						//log("MovieEnd "+name);
+						stop();
+						notBreak = false;
+						break;
+						
+					default:
+						log("[movie] UNKNOWN opcode: " + opcode);
+				}
+			} while (notBreak);
+			mPointer = p;
+			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
 		}
 		
-
 		private function updateFrame():void {
 			onExitFrame(); //call events when exiting previous frame
 			//above may stop this movie
@@ -185,18 +426,19 @@ package display
 
 			var multR:Number, multG:Number, multB:Number;
 			var matrix:Matrix
+			var clrFilter:ColorMatrixFilter
 			//trace("updateFrame "+name)
 			
 			var p:int = mPointer; //actuall memory pointer position
 
 			do {
-				opcode = Memory.readUnsignedByte(p);
+				opcode = li8(p);
+				//trace("MovOp[" + p + "]: " + opcode);
 				p++;
-				
 				switch(opcode) {
 					case cmdMoveDepth:
-						depth = Memory.readUnsignedShort(p);
-						flags = Memory.readUnsignedByte(p + 2);
+						depth = li16(p);
+						flags = li8(p + 2);
 						p += 3;
 
 						obj = getChildAt(depth);
@@ -204,35 +446,33 @@ package display
 						if (obj) {
 							matrix = obj.transformationMatrix;
 							if (8 == (flags & 8)) {//xy
-								matrix.tx = Memory.readFloat(p);
-								matrix.ty = Memory.readFloat(p + 4);
+								matrix.tx = lf32(p);
+								matrix.ty = lf32(p + 4);
 								p += 8;
 							}
 							if(16 == (flags & 16)){//scale
-								matrix.a = Memory.readFloat(p);
-								matrix.d = Memory.readFloat(p + 4);
+								matrix.a = lf32(p);
+								matrix.d = lf32(p + 4);
 								p += 8;
 							} else {
 								matrix.a = matrix.d = 1;
 							}
 							if(32 == (flags & 32)){//skew
-								matrix.b = Memory.readFloat(p);
-								matrix.c = Memory.readFloat(p + 4);
+								matrix.b = lf32(p);
+								matrix.c = lf32(p + 4);
 								p += 8;
 							} else {
 								matrix.b = matrix.c = 0;
 							}
-
+							/*
 							if (64 == (flags & 64)) {//alpha
-
-
-								obj.alpha = Memory.readUnsignedByte(p) / 255;
+								obj.alpha = li8(p) / 255;
 								p++;
 							}
 							if (128 == (flags & 128)) {//color multiply
-								multR = Memory.readUnsignedByte(p)   / 255;
-								multG = Memory.readUnsignedByte(p + 1) / 255;
-								multB = Memory.readUnsignedByte(p + 2) / 255;
+								multR = li8(p)   / 255;
+								multG = li8(p + 1) / 255;
+								multB = li8(p + 2) / 255;
 								p += 3;
 								//log("Tint (Movie): ", multR, multG, multB);
 								if (obj is TimelineObject) {
@@ -244,57 +484,118 @@ package display
 										+ (int(255 * tintRealB * multB));
 								}
 							}
-
+							*/
+							if (64 == (flags & 64)) {//colorMatrix
+								clrFilter = obj.filter as ColorMatrixFilter;
+								if (clrFilter == null) {
+									clrFilter = Assets.getColorMatrixFilter();
+									obj.filter = clrFilter;
+								}
+								clrFilter.setShaderColorMatrix(
+									lf32(p),
+									lf32(p+4),
+									lf32(p+8),
+									lf32(p+12),
+									lf32(p+16),
+									lf32(p+20),
+									lf32(p+24),
+									lf32(p+28)
+								);
+								p += 32;
+								
+							} else if (128 == (flags & 128)) {
+								obj.alpha = li8(p) / 255;
+								p++;
+							}
 						}
 						break;
 						
 					case cmdShowFrame:
-						//trace("showFrame " + mCurrentFrame);
+						//trace("showFrame " + name+" "+mCurrentFrame);
+						mReuseChildren = false;
 						mCurrentFrame++;
-						notBreak = false;
-						break;
+						mPointer = p;
+						return;
+						//notBreak = false;
+						//break;
+					
 					case cmdPlaceNamed:
-						MemoryPool.buffer.position = p;
-						var uniqueObjName:String = MemoryPool.buffer.readUTF();
-						log("%%%%%%% " + uniqueObjName);
-						p = MemoryPool.buffer.position;
+						var nameID:String = Memory.readUTF(p);
+						p = Memory.buffer.position;
+						log("%%%%%%% " + nameID);
 					case cmdPlaceObject:
 					case cmdReplaceObject:
-						id    = Memory.readUnsignedShort(p);
-						depth = Memory.readUnsignedShort(p+2);
-						flags = Memory.readUnsignedByte(p + 4);
+						id    = li16(p);
+						depth = li16(p+2);
+						flags = li8(p + 4);
 						p += 5;
-						switch(flags & 7) { //first 3 bits
-							case 0: //placing image
-								obj = Assets.getTimelineImageByID(id, touchable);
-								break;
-							case 1: //placing object
-								obj = Assets.getTimelineObjectByID(id, touchable);
-								break;
-							case 2: //placing shape
-								obj = Assets.getTimelineShapeByID(id);
-								break;
+						var newObj:Boolean = false;
+						if (mReuseChildren) {
+							//log("LOOP> " + depth, numChildren, name);
+							if (depth >= numChildren) {
+								//log("!!!!!!!!!!!!! " + depth, numChildren);
+								mReuseChildren = false;
+								obj = null;
+							} else {
+								obj = getChildAt(depth);
+							}
+							//
+							if (obj && id != obj.numId) {
+								obj.removeFromParent();
+								obj = null;
+								if(depth == numChildren) mReuseChildren = false;
+							}
+							if (obj == null) {
+								newObj = true;
+								switch(flags & 7) { //first 3 bits
+									case 0: //placing image
+										obj = Assets.getTimelineImageByID(id, touchable);
+										break;
+									case 1: //placing object
+										obj = Assets.getTimelineObjectByID(id, touchable);
+										break;
+									case 2: //placing shape
+										obj = Assets.getTimelineShapeByID(id);
+										break;
+								}
+							}
+							
+							
+						} else {
+							newObj = true;
+							switch(flags & 7) { //first 3 bits
+								case 0: //placing image
+									obj = Assets.getTimelineImageByID(id, touchable);
+									break;
+								case 1: //placing object
+									obj = Assets.getTimelineObjectByID(id, touchable);
+									break;
+								case 2: //placing shape
+									obj = Assets.getTimelineShapeByID(id);
+									break;
+							}
 						}
 						if (obj) {
+							obj.numId = id;
 							if (8 == (flags & 8)) {//xy
-								tmpMatrix.tx = Memory.readFloat(p);
-								tmpMatrix.ty = Memory.readFloat(p + 4);
+								tmpMatrix.tx = lf32(p);
+								tmpMatrix.ty = lf32(p + 4);
 								p += 8;
 							} else {
 								tmpMatrix.tx = 0;
 								tmpMatrix.ty = 0;
 							}
 							if(16 == (flags & 16)){//scale
-								tmpMatrix.a = Memory.readFloat(p);
-								tmpMatrix.d = Memory.readFloat(p + 4);
+								tmpMatrix.a = lf32(p);
+								tmpMatrix.d = lf32(p + 4);
 								p += 8;
 							} else {
 								tmpMatrix.a = 
 								tmpMatrix.d = 1;
 							}
 							if(32 == (flags & 32)){//skew
-								tmpMatrix.b = Memory.readFloat(p);
-								tmpMatrix.c = Memory.readFloat(p + 4);
+								tmpMatrix.b = lf32(p);
+								tmpMatrix.c = lf32(p + 4);
 								p += 8;
 							} else {
 								tmpMatrix.c = 
@@ -302,16 +603,31 @@ package display
 							}
 							obj.transformationMatrix = tmpMatrix;
 
-							if (64 == (flags & 64)) {//alpha
-								obj.alpha = Memory.readUnsignedByte(p) / 255;
+							if (64 == (flags & 64)) {//colorMatrix
+								clrFilter = Assets.getColorMatrixFilter();
+								clrFilter.setShaderColorMatrix(
+									lf32(p),
+									lf32(p+4),
+									lf32(p+8),
+									lf32(p+12),
+									lf32(p+16),
+									lf32(p+20),
+									lf32(p+24),
+									lf32(p+28)
+								);
+								obj.filter = clrFilter;
+								p += 32;
+								
+							} else if (128 == (flags & 128)) {
+								obj.alpha = li8(p) / 255;
 								p++;
 							} else {
 								obj.alpha = 1;
 							}
-							if (128 == (flags & 128)) {//color multiply
-								multR = Memory.readUnsignedByte(p)     / 255;
-								multG = Memory.readUnsignedByte(p + 1) / 255;
-								multB = Memory.readUnsignedByte(p + 2) / 255;
+							/*if (128 == (flags & 128)) {//color multiply
+								multR = li8(p)     / 255;
+								multG = li8(p + 1) / 255;
+								multB = li8(p + 2) / 255;
 								p += 3;
 								//log("Tint (Movie): ", multR, multG, multB);
 								if (obj is TimelineObject) {
@@ -322,19 +638,22 @@ package display
 										+ (int(255 * tintRealG * multG) << 8)
 										+ (int(255 * tintRealB * multB));
 								}
-							}
-							
-							switch (opcode) {
-								case cmdPlaceObject:
-									addChildAt(obj, depth);
-									break;
-								case cmdPlaceNamed:
-									addChildAt(obj, depth);
-									break;
-								default:
-									removeChildAt(depth);
-									addChildAt(obj, depth);
-									//replaceChildAt(obj, depth); //<-this is not in official Starling framework
+							}*/
+							if(newObj){
+								switch (opcode) {
+									case cmdPlaceObject:
+										addChildAt(obj, depth);
+										break;
+									case cmdPlaceNamed:
+										Assets.addNamedObject(obj as TimelineObject, nameID);
+										addChildAt(obj, depth);
+										break;
+									default:
+										//TODO: form-timeline script is not producing replace command at this moment!
+										//removeChildAt(depth);
+										//addChildAt(obj, depth);
+										replaceChildAt(obj, depth); //<-this is not in official Starling framework
+								}
 							}
 							if (dispatching && obj is DisplayObjectContainer) {
 								DisplayObjectContainer(obj).setDispatching(true);
@@ -344,21 +663,27 @@ package display
 						}
 						break;
 					case cmdRemoveDepth:
-						depth = Memory.readUnsignedShort(p);
+						depth = li16(p);
 						p += 2;
 						removeChildAt(depth);
 						break;
 					case cmdLabel:
-						MemoryPool.buffer.position = p;
-						mCurrentLabel = MemoryPool.buffer.readUTF();
-						p = MemoryPool.buffer.position;
+						mCurrentLabel = Memory.readUTF(p);
+						p = Memory.buffer.position;
 						//log("LABEL: " + mCurrentLabel);
 						
 						break;
 					case cmdStartSound:
-						id = Memory.readUnsignedShort(p);
-						p += 2;
-						//log("SOUND: " + id);
+						id = li16(p);
+						var snd:Sound = Assets.getSound(id);
+						var sndTrans:SoundTransform = new SoundTransform();
+						var loops:int = li16(p + 2);
+						sndTrans.leftToLeft   = li16(p + 4) / 32768;
+						sndTrans.rightToRight = li16(p + 6) / 32768;
+						p += 8;
+
+						snd.play(0, loops, sndTrans);
+						//log("SOUND: " + id +" "+snd.length);
 						break;
 					case cmdEnd: //end
 						//log("MovieEnd "+name);
@@ -369,9 +694,11 @@ package display
 							
 						}
 						if(mLoop && (wasTime == mCurrentTime)){
-							removeChildren();
+							//removeChildren();
+							mReuseChildren = true;
 							mPointer = p = mPointerHead + 2; //first 2 bytes are used for frame count
-							//mCurrentFrame = 0;
+							mCurrentFrame = 0;
+							mCurrentTime -= mTotalTime;
 						} else {
 							stop();
 							notBreak = false;
@@ -382,6 +709,7 @@ package display
 						log("[movie] UNKNOWN opcode: " + opcode);
 				}
 			} while (notBreak);
+			trace(mCurrentFrame);
 			mPointer = p;
 		}
         
@@ -433,36 +761,8 @@ package display
         public function get fps():int { return mFPS; }
         public function set fps(value:int):void {
 			mFPS = value;
-			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
 			mFrameDuration = 1.0 / value;
+			mCurrentTime = (mCurrentFrame-1) * mFrameDuration;
         }
-        
-        /** The default number of frames per second. Individual frames can have different 
-         *  durations. If you change the fps, the durations of all frames will be scaled 
-         *  relatively to the previous value. */
-        /*public function get fps():Number { return 1.0 / mDefaultFrameDuration; }
-        public function set fps(value:Number):void
-        {
-            if (value <= 0) throw new ArgumentError("Invalid fps: " + value);
-            
-            var newFrameDuration:Number = 1.0 / value;
-            var acceleration:Number = newFrameDuration / mDefaultFrameDuration;
-            mCurrentTime *= acceleration;
-            mDefaultFrameDuration = newFrameDuration;
-            
-            for (var i:int=0; i<numFrames; ++i)
-                setFrameDuration(i, getFrameDuration(i) * acceleration);
-        }
-        */
-        /** Indicates if the clip is still playing. Returns <code>false</code> when the end 
-         *  is reached. */
-        /*public function get isPlaying():Boolean 
-        {
-            if (mPlaying)
-                return mLoop || mCurrentTime < mTotalTime;
-            else
-                return false;
-        }
-		*/
     }
 }

@@ -1,5 +1,6 @@
 package scenes 
 {
+	import core.Assets;
 	import display.TextureAnim;
 	import flash.display.MovieClip;
 	import scenes.Scene;
@@ -38,6 +39,8 @@ package scenes
 			super.onInit(e);
 			dispatching = false;
 			addQuadSensor(this, 'BG', 0, 0,  gameWidth, gameHeight);
+			
+			initFocus();
 			
 			//For testing purposes I'm adding multiple TimelineMovies with different framerate
 			//in real life I'm not using so many animations, but much more longer one.

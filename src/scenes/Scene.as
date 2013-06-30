@@ -1,8 +1,12 @@
 package scenes
 {
+	import core.Assets;
+	import core.Global;
 	import display.SensorQuad;
 	import display.TimelineObject;
 	import display.TimelineMovie;
+	import display.ISensor;
+	import flash.geom.Rectangle;
 	import starling.display.DisplayObject;
 	import starling.animation.Tween;
 	import starling.display.DisplayObjectContainer;
@@ -49,55 +53,71 @@ package scenes
 		public var _focusPivotX:Number;
 		public var _focusPivotY:Number;
 		public var _focusScale:Number;
-		public var _focusAC:Number = .2;
+				public var _focusAC:Number = .4 //.07;
+		public var startLevelHorizontalPosition:int;
 		
+		protected var mCanDetectWalkChange:Boolean = true;
+		protected var mOnPressedX:Number;
+		protected var mOnPressedY:Number;
+		protected var mTouches:Vector.<Touch> = new Vector.<Touch>;
+
+		protected const mGlobal:Global = Global.instance;
 		
 		public function Scene() 
 		{
 			this.addEventListener(Event.ADDED_TO_STAGE, onInit);
 		}
 		public function onInit(e:Event):void {
+			addEventListener(Event.REMOVED_FROM_STAGE, onRemovedFromStage);
 			stageWidth = stage.stageWidth;
 			stageHeight = stage.stageHeight;
-			
-			minScale = Math.max(stageHeight / (gameHeight), stageWidth / (gameWidth - 80));
-			maxScale = minScale + 0.3;
-			
-			_focusPivotX = pivotX = gameWidth / 2;
-			_focusPivotY = pivotY = gameHeight / 2;
-			_focusScale = scaleX = scaleY = minScale;//1 //
-			
-			scalePercent = scaleX - minScale;
-			
-			maxGameWidth  = gameWidth  * maxScale;
-			maxGameHeight = gameHeight * maxScale;
-			
-			maxStageWidthOffset  = stageWidth  - maxGameWidth;
-			maxStageHeightOffset = stageHeight - maxGameHeight;
-			
-			maxx = stageWidth  - (((gameWidth  * scaleX) - pivotX));
-			maxy = stageHeight - (((gameHeight * scaleY) - pivotY));
-			
-			//trace("minScale: " + minScale + " maxGameWidth: " + maxGameWidth);
-			_focusX = x = stageWidth  / 2;
-			_focusY = y = stageHeight / 2;
-			
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 			var serverString:String = unescape(Capabilities.serverString);
 			var reportedDpi:Number = Number(serverString.split("&DP=", 2)[1]);
 			log("DPI:" + Capabilities.screenDPI, reportedDpi);
-			
+			startLevelHorizontalPosition = 0;
 			zoomEnabled = true;
 			this.addEventListener(EnterFrameEvent.ENTER_FRAME, startLevel);
 		}
+		private function onRemovedFromStage(e:Event):void {
+			removeEventListener(Event.REMOVED_FROM_STAGE, onRemovedFromStage);
+		}
 		public override function dispose():void {
+			trace("-->scene dispose " +this);			
+			Starling.juggler.removeTweens(this);
 			this.removeEventListener(EnterFrameEvent.ENTER_FRAME, onEnterFrame);
-			zoomEnabled = false;
+			if (parent) parent.removeEventListener(TouchEvent.TOUCH, onTouch);
+			Starling.current.nativeStage.removeEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheelEvent);
 			if (stageTween) {
 				Starling.juggler.remove(stageTween);
 				stageTween = null;
 			}
 			super.dispose();
-			trace("dispose " +this);
+			if(parent) removeFromParent();
+			removeChildren();
+			trace("<--scene dispose " +this);
 		}
 		public function set zoomEnabled(value:Boolean):void {
 			log("zoomEnabled:" + value);
@@ -123,27 +143,46 @@ package scenes
 		public function onAnimLabel(anim:DisplayObjectContainer, label:String ):void {
 			log(label, anim);
 		}
-		
-		public function addQuadSensor(
+				public function addQuadSensor(
 			target:DisplayObjectContainer, name:String,
 			x:Number, y:Number, width:Number, height:Number,
-			enabled:Boolean = true
-		):void {
-			var tmp:SensorQuad = new SensorQuad(name, x, y, width, height, enabled);
-			tmp.alpha = 0;
-			tmp.addEventListener(TouchEvent.TOUCH, onTouchSensor);
-			Game.instance.addSensor(tmp);
-			target.addChild(tmp);
+			enabled:Boolean = true, touchable:Boolean = true
+		):ISensor {
+			var sensor:SensorQuad = new SensorQuad(name, x, y, width, height, enabled);
+			sensor.touchable = touchable;
+			sensor.alpha = 0.0;
+			//tmp.blendMode = "add";
+			//tmp.addEventListener(TouchEvent.TOUCH, onTouchSensor);
+			Global.instance.addSensor(sensor);
+			target.addChild(sensor);
+			return sensor;
+		}
+		public function removeQuadSensor(name:String):void {
+			var sensor:SensorQuad = Global.instance.getSensor(name) as SensorQuad;
+			if (sensor) {
+				sensor.removeFromParent(true);
+			}
 		}
 		
-		public function zoomToRegion(x:Number, y:Number, width:Number, height:Number):void {
+		public function enableSensor(name:String):void {
+			mGlobal.enableSensor(name);
+		}
+		public function disableSensor(name:String):void {
+			mGlobal.disableSensor(name);
+		}
+		
+		public function addZoomRegion(name:String, x:Number, y:Number, width:Number, height:Number):void {
+			new Rectangle(x, y, width, height);
+		}
+		public function zoomToRegion(x:Number, y:Number, width:Number, height:Number, acceleration:Number=0.2):void {
 			var dx:Number = stageWidth - width;
 			var dy:Number = stageHeight - height;
 			_focusX = stageWidth / 2
 			_focusY = stageHeight / 2;
 			_focusPivotX = x + (width / 2);
 			_focusPivotY = y + (height / 2);
-			log(_focusX, _focusY, "pivot:" +_focusPivotX, _focusPivotY);
+			_focusAC = acceleration;
+			log("zooToRegion: "+_focusX, _focusY, "pivot:" +_focusPivotX, _focusPivotY);
 			//_focusX = - stage.stageWidth + width; 
 			//_focusY = - stage.stageHeight + height; 
 			if (dy < dx) {
@@ -159,7 +198,9 @@ package scenes
 			//log(dx, dy, stageHeight-dy);
 		}
 		
-		public function onTouchSensor(e:TouchEvent):void { };
+		public function onTouchSensor(e:TouchEvent):void {};
+		public function onAddNamedObject(object:TimelineObject):void { };
+
 		protected function onEnterFrame(e:EnterFrameEvent):void { };
 		
 		public function updateParalax():void{};
@@ -281,8 +322,49 @@ package scenes
 			}
         }
 		
+		protected function initFocus():void {
+			
+			minScale = Math.max(stage.stageHeight / (1080 - 0), stage.stageWidth / (1920 - 40));
+			maxScale = (stage.stageWidth < 1920) ? 1.0: minScale + 0.5;
+			log("minScale: " + minScale +" max: " + maxScale);
+			
+			_focusPivotX = pivotX = 1920  / 2;
+			_focusPivotY = pivotY = 1080 / 2;
+			
+			_focusScale = scaleX = scaleY = minScale;//1 //
+			
+			scalePercent = scaleX - minScale;
+			
+			//pivotX = (1920 * scaleX)  / 2;
+			//pivotY = (1080 * scaleY) / 2;
+
+			maxGameWidth  = 1920 * maxScale;
+			maxGameHeight = 1080 * maxScale;
+			maxStageWidthOffset = stage.stageWidth - maxGameWidth;
+			maxStageHeightOffset = stage.stageHeight - maxGameHeight;
+			
+			
+			maxx = stage.stageWidth  - (((1920 * scaleX) - pivotX)) ;
+			maxy = stage.stageHeight - (((1080 * scaleY) - pivotY))
+			
+			if(startLevelHorizontalPosition == 0){
+				_focusX = x = stage.stageWidth / 2 //(stage.stageWidth - maxGameWidth)  / 2
+			} else if (startLevelHorizontalPosition < 0) {
+				_focusX = x = scaleX * (1920 - _focusPivotX);
+			} else {
+				_focusX = x = stage.stageWidth - (scaleX * (1920 - _focusPivotX)) ;
+			}
+			
+			_focusY = y = stage.stageHeight / 2 ;
+		}
 		protected function onMouseWheelEvent(e:MouseEvent):void {
-			_focusScale = (e.delta < 0)?minScale:maxScale;
+			_focusScale += (e.delta / 60);
+			if (_focusScale < minScale) {
+				_focusScale = minScale;
+			} else if (_focusScale > maxScale) {
+				_focusScale = maxScale;
+			}
+			//_focusScale = (e.delta < 0)?minScale:maxScale;
 			scalePercent = _focusScale - minScale;
 			
 			var px:Number;
@@ -305,8 +387,6 @@ package scenes
 			} else if(_focusY < maxy) {
 				_focusY = maxy;
 			}
-					
-					
 		}
 		public function replaceAnim(AnimHolder:Sprite, newAnimID:String):void {
 			var oldAnim:TimelineObject = AnimHolder.getChildAt(0) as TimelineObject;
