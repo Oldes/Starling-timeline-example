@@ -1,5 +1,6 @@
 package scenes 
 {
+	import core.Assets;
 	import display.TextureAnim;
 	import flash.display.MovieClip;
 	import scenes.Scene;
@@ -39,6 +40,8 @@ package scenes
 			dispatching = false;
 			addQuadSensor(this, 'BG', 0, 0,  gameWidth, gameHeight);
 			
+			initFocus();
+			
 			//For testing purposes I'm adding multiple TimelineMovies with different framerate
 			//in real life I'm not using so many animations, but much more longer one.
 			//The main purpose of TimelineMovies is not to have many duplicated animations!
@@ -61,7 +64,7 @@ package scenes
 				
 				addChild(tmp);
 				
-				tmp = Assets.getStarlingMovie("Sekac") as DisplayObject;
+				tmp = Assets.getStarlingMovie("Mlok/Mlok/Sekac") as DisplayObject;
 				tmp.x = 100 + 1420 * Math.random();
 				tmp.y = 100 + 780 * Math.random();
 				TextureAnim(tmp).fps = 30 + 0.5 * i;
