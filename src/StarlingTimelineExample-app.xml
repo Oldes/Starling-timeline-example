@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<application xmlns="http://ns.adobe.com/air/application/3.4">
+<application xmlns="http://ns.adobe.com/air/application/3.8">
 	
-	<id>air.Starlingtimelineexample.debug</id>
-	<versionNumber>0.1.0</versionNumber>
+	<id>air.Starlingtimelineexample</id>
+	<versionNumber>0.1</versionNumber>
 	<supportedProfiles>mobileDevice</supportedProfiles>
-	<filename>Starlingtimelineexample</filename>
+	<filename>StarlingTimelineExample.swf</filename>
 	
-	<name>Starling-timeline-example-debug-debug</name>
+	<name>Starling-timeline-example</name>
 	<description/>
 	<copyright/>
 	
@@ -14,7 +14,7 @@
 		<manifestAdditions><![CDATA[
 			
 			<manifest android:installLocation="auto">
-			  <uses-sdk android:minSdkVersion="8"/>
+			  <uses-sdk android:minSdkVersion="8"/>"application.xml"
 				<uses-permission android:name="android.permission.INTERNET"/>
 				<uses-feature android:required="true" android:name="android.hardware.touchscreen.multitouch"/>
 			</manifest>
@@ -53,8 +53,7 @@
 		<!--<autoOrients>false</autoOrients>-->
 		<aspectRatio>landscape</aspectRatio>
 		<renderMode>direct</renderMode>
-	<autoOrients>false</autoOrients>
-    </initialWindow>
+	</initialWindow>
 	
 	<icon>
 		<image48x48>icons/icon_48.png</image48x48>

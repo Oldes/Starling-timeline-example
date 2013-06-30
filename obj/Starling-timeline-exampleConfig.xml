@@ -37,12 +37,9 @@
       <path-element>C:\Program Files (x86)\FlashDevelop\Library\AS3\classes</path-element>
     </source-path>
     <include-libraries />
-    <library-path append="true">
-      <path-element>c:\dev\UTILS\apparat-1.0-SNAPSHOT\apparat-ersatz-1.0-SNAPSHOT.swc</path-element>
-    </library-path>
   </compiler>
   <file-specs>
-    <path-element>C:\dev\GIT\Starling-timeline-example\src\Main.as</path-element>
+    <path-element>C:\dev\GIT\Starling-timeline-example\src\StarlingTimelineExample.as</path-element>
   </file-specs>
   <default-background-color>#FFFFFF</default-background-color>
   <default-frame-rate>30</default-frame-rate>

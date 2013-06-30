@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<actionScriptProperties analytics="false" mainApplicationPath="Main.as" projectUUID="16fe79e0-9838-46e6-8ba7-3928676a1d50" version="11">
-  <compiler additionalCompilerArguments="-locale en_US" advancedTelemetry="false" autoRSLOrdering="true" copyDependentFiles="true" fteInMXComponents="false" generateAccessible="false" htmlExpressInstall="true" htmlGenerate="false" htmlHistoryManagement="false" htmlPlayerVersionCheck="true" includeNetmonSwc="false" outputFolderPath="bin" removeUnusedRSL="true" sourceFolderPath="src" strict="true" targetPlayerVersion="0.0.0" useApolloConfig="true" useDebugRSLSwfs="true" useFlashSDK="true" verifyDigests="true" warn="true">
+<actionScriptProperties analytics="false" mainApplicationPath="StarlingTimelineExample.as" projectUUID="16fe79e0-9838-46e6-8ba7-3928676a1d50" version="11">
+  <compiler additionalCompilerArguments="-locale en_US -debug=false" advancedTelemetry="false" autoRSLOrdering="true" copyDependentFiles="false" fteInMXComponents="false" generateAccessible="false" htmlExpressInstall="true" htmlGenerate="false" htmlHistoryManagement="false" htmlPlayerVersionCheck="true" includeNetmonSwc="false" outputFolderPath="bin" removeUnusedRSL="true" sourceFolderPath="src" strict="true" targetPlayerVersion="0.0.0" useApolloConfig="true" useDebugRSLSwfs="true" useFlashSDK="true" verifyDigests="true" warn="true">
     <compilerSourcePath>
-      <compilerSourcePathEntry kind="1" linkType="1" path="/Users/Oldes/Documents/Starling/Starling-Framework/starling/src"/>
-      <compilerSourcePathEntry kind="1" linkType="1" path="/Users/Oldes/Documents/Starling/Starling-Extension-Graphics/extension/src"/>
+      <compilerSourcePathEntry kind="1" linkType="1" path="C:/dev/Starling/Starling-Framework/starling/src"/>
+      <compilerSourcePathEntry kind="1" linkType="1" path="C:/dev/GIT/Starling-Extension-Graphics/extension/src"/>
     </compilerSourcePath>
     <libraryPath defaultLinkType="0">
       <libraryPathEntry kind="4" path="">
@@ -41,7 +41,7 @@
     <sourceAttachmentPath/>
   </compiler>
   <applications>
-    <application path="Main.as">
+    <application path="StarlingTimelineExample.as">
       <airExcludes/>
     </application>
   </applications>
@@ -56,22 +56,37 @@
         <anePaths/>
         <newLaunchParams/>
         <modifiedLaunchParams/>
+        <newPackagingParams/>
+        <modifiedPackagingParams/>
       </airSettings>
       <multiPlatformSettings enabled="true" hideAneLibSymbols="0" includePlatformLibs="false" platformID="com.adobe.flexide.multiplatform.ios.platform" reducedSizePackaging="false" version="1"/>
       <actionScriptSettings version="1"/>
     </buildTarget>
-    <buildTarget airDownloadURL="" androidSettingsVersion="2" buildTargetName="device" isCurrent="true" platformId="com.adobe.flexide.multiplatform.android.platform">
-      <airSettings airCertificatePath="" airTimestamp="true" anePathSet="false" version="1">
+    <buildTarget airDownloadURL="https://market.android.com/details?id=com.adobe.air" androidSettingsVersion="2" buildTargetName="device" isCurrent="true" platformId="com.adobe.flexide.multiplatform.android.platform">
+      <multiPlatformSettings enabled="true" hideAneLibSymbols="0" includePlatformLibs="false" platformID="com.adobe.flexide.multiplatform.android.platform" reducedSizePackaging="false" version="1"/>
+      <airSettings airCertificatePath="C:/dev/GIT/Starling-timeline-example/cert/Starlingtimelineexample.p12" airTimestamp="true" anePathSet="true" version="1">
         <airExcludes/>
         <anePaths/>
+        <newLaunchParams/>
+        <modifiedLaunchParams>
+          <Parameter name="LaunchURL" value="C:\dev\GIT\Starling-timeline-example\src\StarlingTimelineExample-app.xml"/>
+          <Parameter name="DebugLauncher" value="c:\SDKs\AIR3.8\bin\adl.exe"/>
+          <Parameter name="Runtime" value="c:\SDKs\AIR3.8\runtimes\air\win"/>
+          <Parameter name="ArgumentsArray" value="-notrace"/>
+        </modifiedLaunchParams>
+        <newPackagingParams/>
+        <modifiedPackagingParams/>
       </airSettings>
-      <multiPlatformSettings enabled="true" hideAneLibSymbols="0" includePlatformLibs="false" platformID="com.adobe.flexide.multiplatform.android.platform" reducedSizePackaging="false" version="1"/>
       <actionScriptSettings version="1"/>
     </buildTarget>
     <buildTarget buildTargetName="default" isCurrent="true" platformId="default">
       <airSettings airCertificatePath="" airTimestamp="true" anePathSet="false" version="1">
         <airExcludes/>
         <anePaths/>
+        <newLaunchParams/>
+        <modifiedLaunchParams/>
+        <newPackagingParams/>
+        <modifiedPackagingParams/>
       </airSettings>
       <multiPlatformSettings enabled="false" hideAneLibSymbols="0" includePlatformLibs="false" platformID="default" reducedSizePackaging="false" version="1"/>
       <actionScriptSettings version="1"/>
